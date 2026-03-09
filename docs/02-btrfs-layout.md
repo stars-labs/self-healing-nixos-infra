@@ -24,35 +24,16 @@ ext4 is battle-tested but lacks native snapshots. LVM snapshots exist but are sl
 
 ## Subvolume Design
 
-```
-Btrfs partition (/dev/sda2)
-│
-├── @root        ──> /                  [snapshotted]
-│   System root. Contains everything not mounted elsewhere.
-│   Rolled back when a system change fails.
-│
-├── @home        ──> /home              [snapshotted]
-│   User data. Separate snapshot schedule from system.
-│   Rolled back independently of system state.
-│
-├── @nix         ──> /nix               [NOT snapshotted]
-│   Nix store. Content-addressed — every path is
-│   identified by its hash. Never needs snapshots.
-│   Rebuilt from flake.lock on demand.
-│
-├── @log         ──> /var/log           [NOT rolled back]
-│   System logs. Persists across rollbacks so you can
-│   debug what went wrong after restoring a snapshot.
-│
-├── @db          ──> /var/lib/db        [snapshotted separately]
-│   Database files (PostgreSQL, SQLite, etc.).
-│   Snapshot taken with application-level quiesce
-│   for consistency.
-│
-└── @snapshots   ──> /.snapshots        [snapshot storage]
-    Where snapper stores its snapshots.
-    Must be a separate subvolume to avoid recursive
-    snapshot-of-snapshots.
+```mermaid
+flowchart TB
+    subgraph Btrfs["Btrfs partition (/dev/sda2)"]
+        A["@root -> /<br/>snapshotted<br/>System root, rolled back when system change fails"]
+        B["@home -> /home<br/>snapshotted<br/>User data, separate snapshot schedule"]
+        C["@nix -> /nix<br/>NOT snapshotted<br/>Nix store, content-addressed"]
+        D["@log -> /var/log<br/>NOT rolled back<br/>System logs, persists across rollbacks"]
+        E["@db -> /var/lib/db<br/>snapshotted separately<br/>Database files"]
+        F["@snapshots -> /.snapshots<br/>snapshot storage<br/>Must be separate subvolume"]
+    end
 ```
 
 ## Why This Layout

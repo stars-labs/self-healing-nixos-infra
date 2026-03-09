@@ -9,23 +9,21 @@ title: Bootstrap with nixos-anywhere
 
 ## How It Works
 
-```
-┌─────────────────┐     SSH      ┌─────────────────────────────┐
-│  Local Machine  │─────────────>│  Target Server              │
-│  (has Nix)      │              │  (any Linux distro)         │
-│                 │              │                              │
-│  flake.nix      │   1. kexec   │  ┌───────────────────────┐  │
-│  disko config   │──────────────>  │ NixOS installer (RAM) │  │
-│                 │              │  └───────────┬───────────┘  │
-│                 │   2. disko   │              │               │
-│                 │──────────────>  partition + format disk    │
-│                 │              │              │               │
-│                 │   3. install │              ▼               │
-│                 │──────────────>  nixos-install from flake   │
-│                 │              │              │               │
-│                 │   4. reboot  │              ▼               │
-│                 │──────────────>  Boot into NixOS            │
-└─────────────────┘              └─────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Local as Local Machine<br/>has Nix
+    participant Target as Target Server<br/>any Linux distro
+    
+    Local->>Target: 1. kexec (SSH)
+    Note over Target: NixOS installer (RAM)
+    Target-->>Local: SSH connection established
+    
+    Local->>Target: 2. disko (partition + format disk)
+    
+    Local->>Target: 3. install (nixos-install from flake)
+    
+    Local->>Target: 4. reboot
+    Note over Target: Boot into NixOS
 ```
 
 ## Prerequisites

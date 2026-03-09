@@ -11,40 +11,45 @@ This page describes the full system architecture, component interactions, data f
 
 The architecture is built in layers, each providing guarantees to the layer above:
 
-```
-┌─────────────────────────────────────────────────────┐
-│                  Human Operator                      │
-│              (TOTP authentication)                   │
-├─────────────────────────────────────────────────────┤
-│                   OpenClaw                           │
-│          (AI infrastructure operator)                │
-│    ┌───────────┐  ┌──────────┐  ┌──────────────┐   │
-│    │  Monitor   │  │ Propose  │  │   Execute    │   │
-│    │  & Detect  │  │  Changes │  │  (via sudo)  │   │
-│    └───────────┘  └──────────┘  └──────────────┘   │
-├─────────────────────────────────────────────────────┤
-│                TOTP Gate (pam_oath)                   │
-│         Guards: nixos-rebuild, systemctl,             │
-│         user management, firewall changes            │
-├─────────────────────────────────────────────────────┤
-│              NixOS Configuration                     │
-│    ┌───────────┐  ┌──────────┐  ┌──────────────┐   │
-│    │  Flake    │  │ Modules  │  │  nixos-      │   │
-│    │  (pinned) │  │          │  │  rebuild     │   │
-│    └───────────┘  └──────────┘  └──────────────┘   │
-├─────────────────────────────────────────────────────┤
-│              Snapshot Layer (Snapper)                 │
-│    ┌───────────┐  ┌──────────┐  ┌──────────────┐   │
-│    │   Pre     │  │ Timeline │  │   Remote     │   │
-│    │ Snapshots │  │ Cleanup  │  │   Backup     │   │
-│    └───────────┘  └──────────┘  └──────────────┘   │
-├─────────────────────────────────────────────────────┤
-│           Btrfs Filesystem (subvolumes)              │
-│   @root  @home  @nix  @log  @db  @snapshots         │
-├─────────────────────────────────────────────────────┤
-│              Hardware / VPS / VPC                     │
-│           (provisioned via nixos-anywhere)            │
-└─────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Hardware["Hardware / VPS / VPC"]
+        H[provisioned via nixos-anywhere]
+    end
+    
+    subgraph Btrfs["Btrfs Filesystem (subvolumes)"]
+        B[@root, @home, @nix, @log, @db, @snapshots]
+    end
+    
+    subgraph Snap["Snapshot Layer (Snapper)"]
+        S1[Pre Snapshots] --> S2[Timeline Cleanup]
+        S2 --> S3[Remote Backup]
+    end
+    
+    subgraph Nix["NixOS Configuration"]
+        N1[Flake<br/>pinned] --> N2[Modules]
+        N2 --> N3[nixos-rebuild]
+    end
+    
+    subgraph TOTP["TOTP Gate (pam_oath)"]
+        T[Guards: nixos-rebuild, systemctl, user management, firewall changes]
+    end
+    
+    subgraph OpenClaw["OpenClaw (AI infrastructure operator)"]
+        O1[Monitor & Detect] --> O2[Propose Changes]
+        O2 --> O3[Execute<br/>via sudo]
+    end
+    
+    subgraph Human["Human Operator"]
+        HO[TOTP authentication]
+    end
+    
+    H --> B
+    B --> Snap
+    Snap --> Nix
+    Nix --> TOTP
+    TOTP --> OpenClaw
+    OpenClaw --> Human
 ```
 
 ## Design Principles
@@ -64,8 +69,9 @@ sudo reboot
 
 The entire system is defined in Nix flakes. Two identical flake inputs produce identical systems:
 
-```
-flake.lock (pinned)  ──>  nixos-rebuild  ──>  identical system state
+```mermaid
+flowchart LR
+    A[flake.lock<br/>pinned] --> B[nixos-rebuild] --> C[identical<br/>system state]
 ```
 
 ### 3. Defense-in-Depth
@@ -86,6 +92,15 @@ OpenClaw runs as a dedicated system user. It cannot directly execute privileged 
 
 ## Component Interactions
 
+```mermaid
+flowchart TB
+    A[OpenClaw<br/>detect] -->|propose change| B[TOTP Sudo Gate<br/>pam_oath validates 6-digit code]
+    C[Human<br/>approve] -->|TOTP code| B
+    B -->|authorized| D[Pre-Change Snapshot<br/>btrfs snapshot @root -> @root-pre]
+    D -->|apply| E[nixos-rebuild switch<br/>applies new NixOS configuration]
+    E --> F{success?}
+    F -->|yes| G[Done<br/>keep snapshot]
+    F -->|no| H[Rollback<br/>restore snapshot]
 ```
 ┌──────────────┐         ┌──────────────┐
 │   OpenClaw   │         │    Human     │
@@ -149,14 +164,17 @@ A typical configuration change flows through the system like this:
 
 ## Subvolume Map
 
+```mermaid
+flowchart TB
+    subgraph Btrfs["Btrfs pool (/)"]
+        A["@root -> /<br/>system root, snapshotted"]
+        B["@home -> /home<br/>user data, snapshotted"]
+        C["@nix -> /nix<br/>Nix store, NOT snapshotted"]
+        D["@log -> /var/log<br/>logs, persisted across rollbacks"]
+        E["@db -> /var/lib/db<br/>databases, separate snapshot schedule"]
+        F["@snapshots -> /.snapshots<br/>snapshot storage"]
+    end
 ```
-Btrfs pool (/)
-├── @root        -> /              (system root, snapshotted)
-├── @home        -> /home          (user data, snapshotted)
-├── @nix         -> /nix           (Nix store, NOT snapshotted)
-├── @log         -> /var/log       (logs, persisted across rollbacks)
-├── @db          -> /var/lib/db    (databases, separate snapshot schedule)
-└── @snapshots   -> /.snapshots    (snapshot storage)
 ```
 
 :::note Why /nix Is Not Snapshotted
@@ -165,45 +183,29 @@ The Nix store (`/nix`) is content-addressed. Every path is identified by its has
 
 ## Security Model
 
-```
-┌──────────────────────────────────────────────────┐
-│                 Threat Model                      │
-├──────────────────────────────────────────────────┤
-│                                                   │
-│  Threat: AI makes a bad change                   │
-│  Mitigation: TOTP gate + pre-change snapshot     │
-│                                                   │
-│  Threat: Attacker gains shell access             │
-│  Mitigation: TOTP required for sudo escalation   │
-│                                                   │
-│  Threat: Configuration drift                     │
-│  Mitigation: Declarative NixOS (no drift)        │
-│                                                   │
-│  Threat: Data loss from bad migration            │
-│  Mitigation: Btrfs snapshot of @db before change │
-│                                                   │
-│  Threat: Complete disk failure                   │
-│  Mitigation: Remote btrfs send/receive backup    │
-│                                                   │
-└──────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Threats["Threat Model"]
+        A[Threat: AI makes a bad change] --> A1[Mitigation: TOTP gate + pre-change snapshot]
+        B[Threat: Attacker gains shell access] --> B1[Mitigation: TOTP required for sudo escalation]
+        C[Threat: Configuration drift] --> C1[Mitigation: Declarative NixOS (no drift)]
+        D[Threat: Data loss from bad migration] --> D1[Mitigation: Btrfs snapshot of @db before change]
+        E[Threat: Complete disk failure] --> E1[Mitigation: Remote btrfs send/receive backup]
+    end
 ```
 
 ### Authentication Flow
 
-```
-User/AI ──> sudo nixos-rebuild switch
-                    │
-                    ▼
-            ┌───────────────┐
-            │  PAM Stack    │
-            │               │
-            │  1. pam_unix  │──> password check
-            │  2. pam_oath  │──> TOTP check (6-digit code)
-            │  3. pam_env   │──> environment setup
-            └───────────────┘
-                    │
-                    ▼ (both passed)
-            Command executes
+```mermaid
+flowchart TB
+    A[User/AI<br/>sudo nixos-rebuild switch] --> B[PAM Stack]
+    B --> C[1. pam_unix<br/>password check]
+    B --> D[2. pam_oath<br/>TOTP check 6-digit code]
+    B --> E[3. pam_env<br/>environment setup]
+    C -->|pass| F{all passed?}
+    D -->|pass| F
+    E --> F
+    F -->|yes| G[Command executes]
 ```
 
 ## What's Next

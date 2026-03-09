@@ -9,17 +9,10 @@ This chapter configures TOTP (Time-based One-Time Password) authentication for s
 
 ## Why TOTP for Sudo
 
-```
-Without TOTP:
-  attacker gains SSH ──> sudo nixos-rebuild ──> system compromised
-
-With TOTP:
-  attacker gains SSH ──> sudo nixos-rebuild ──> TOTP prompt
-                                                     │
-                                          attacker doesn't have
-                                          the TOTP secret
-                                                     │
-                                                  BLOCKED ✓
+```mermaid
+flowchart LR
+    A[attacker gains SSH] -->|without TOTP| B[sudo nixos-rebuild] --> C[system compromised]
+    A -->|with TOTP| D[sudo nixos-rebuild] --> E[TOTP prompt] -->|attacker doesn't have secret| F[BLOCKED ✓]
 ```
 
 The TOTP secret lives on your phone (or hardware token), not on the server. Even if the server is compromised, the attacker cannot generate valid codes.
@@ -35,29 +28,13 @@ The TOTP secret lives on your phone (or hardware token), not on the server. Even
 
 ## PAM Authentication Flow
 
-```
-sudo nixos-rebuild switch
-         │
-         ▼
-┌─────────────────────┐
-│    PAM Stack         │
-│                      │
-│  ┌────────────────┐  │
-│  │   pam_unix     │  │──> Password check (or SSH key)
-│  └────────┬───────┘  │
-│           │ pass      │
-│  ┌────────▼───────┐  │
-│  │   pam_oath     │  │──> TOTP check (6-digit code)
-│  └────────┬───────┘  │
-│           │ pass      │
-│  ┌────────▼───────┐  │
-│  │   pam_env      │  │──> Environment setup
-│  └────────────────┘  │
-│                      │
-└──────────┬───────────┘
-           │ all passed
-           ▼
-    Command executes
+```mermaid
+flowchart TB
+    A[sudo nixos-rebuild switch] --> B[PAM Stack]
+    B --> C[pam_unix<br/>password check]
+    C -->|pass| D[pam_oath<br/>TOTP check 6-digit code]
+    D -->|pass| E[pam_env<br/>environment setup]
+    E -->|all passed| F[Command executes]
 ```
 
 ## NixOS Configuration

@@ -11,23 +11,20 @@ Snapshots are the core of the rollback strategy. This chapter covers manual snap
 
 A Btrfs snapshot is an instant, space-efficient copy of a subvolume. It uses copy-on-write — at creation time, no data is copied. Space is only consumed as files diverge between the original and the snapshot.
 
+```mermaid
+flowchart LR
+    subgraph T0["Time T0: Create snapshot"]
+        A["@root (live)"] --- B["Both point to same data<br/>blocks via COW"]
+        C["@root-snap-T0"] --- B
+    end
+    
+    subgraph T1["Time T1: Modify file in @root"]
+        D["@root (live)<br/>modified block"] --- E["shared blocks"]
+        F["@root-snap-T0<br/>original block"] --- E
+    end
 ```
-Time T0: Create snapshot
-┌────────────────────┐    ┌────────────────────┐
-│    @root (live)    │    │  @root-snap-T0     │
-│                    │    │                    │
-│  Both point to the same underlying data      │
-│  blocks via COW references                   │
-└────────────────────┘    └────────────────────┘
 
-Time T1: Modify a file in @root
-┌────────────────────┐    ┌────────────────────┐
-│    @root (live)    │    │  @root-snap-T0     │
-│  [modified block]──┤    │  [original block]──┤
-│  [shared blocks]───┼────┼──[shared blocks]   │
-└────────────────────┘    └────────────────────┘
-Only the changed blocks consume additional space.
-```
+> Only the changed blocks consume additional space.
 
 ### Read-Only vs Read-Write Snapshots
 

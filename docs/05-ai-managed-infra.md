@@ -9,22 +9,16 @@ With OpenClaw installed, this chapter defines the operational model: what the AI
 
 ## Operational Model
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     Change Pipeline                          │
-│                                                              │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌───────┐ │
-│  │  Detect  │───>│ Classify │───>│ Approve  │───>│ Apply │ │
-│  │  Issue   │    │ Severity │    │ (if req) │    │       │ │
-│  └──────────┘    └──────────┘    └──────────┘    └───┬───┘ │
-│                                                      │      │
-│                                        ┌─────────────┤      │
-│                                        │             │      │
-│                                   ┌────▼───┐   ┌────▼───┐  │
-│                                   │ Verify │   │Rollback│  │
-│                                   │  Pass  │   │  Fail  │  │
-│                                   └────────┘   └────────┘  │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    A[Detect Issue] --> B[Classify Severity]
+    B --> C{Approval Required?}
+    C -->|No| D[Apply]
+    C -->|Yes| E[Approve (if req)]
+    E --> D
+    D --> F{Verify}
+    F -->|Pass| G[Commit]
+    F -->|Fail| H[Rollback]
 ```
 
 ## Action Classification

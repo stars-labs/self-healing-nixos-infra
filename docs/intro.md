@@ -19,29 +19,18 @@ By the end of this guide, you'll have a server that:
 - Gates **critical operations** (`nixos-rebuild switch`, config changes) behind **TOTP authentication**
 - Can **roll back instantly** when something goes wrong — whether caused by a human or an AI
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Self-Healing NixOS Server                   │
-│                                                                 │
-│  ┌──────────┐    ┌────────────┐    ┌──────────┐                │
-│  │ OpenClaw │───>│ TOTP Gate  │───>│ nixos-   │                │
-│  │ AI Agent │    │ (pam_oath) │    │ rebuild  │                │
-│  └──────────┘    └────────────┘    └─────┬────┘                │
-│       │                                  │                      │
-│       │  monitor                  apply  │                      │
-│       ▼                                  ▼                      │
-│  ┌──────────┐    ┌────────────┐    ┌──────────┐                │
-│  │ System   │    │   Btrfs    │◄───│ Snapshot │                │
-│  │ Health   │    │ Subvolumes │    │ (before) │                │
-│  └──────────┘    └────────────┘    └──────────┘                │
-│                        │                                        │
-│                        │  if failure                            │
-│                        ▼                                        │
-│                  ┌────────────┐                                 │
-│                  │  Rollback  │                                 │
-│                  │ (instant)  │                                 │
-│                  └────────────┘                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Server["Self-Healing NixOS Server"]
+        direction LR
+        A[OpenClaw<br/>AI Agent] -->|monitor| B[System Health]
+        A -->|propose| C[TOTP Gate<br/>pam_oath]
+        C -->|approve| D[nixos-rebuild]
+        B -->|check| E[Btrfs Subvolumes]
+        D -->|apply| E
+        E -->|snapshot| F[Snapshot<br/>before change]
+        F -->|failure| G[Rollback<br/>instant]
+    end
 ```
 
 ## Who This Is For

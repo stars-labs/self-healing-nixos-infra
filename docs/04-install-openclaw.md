@@ -9,33 +9,17 @@ OpenClaw is an AI-powered infrastructure operator. It monitors system health, pr
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    OpenClaw Agent                        │
-│                                                         │
-│  ┌──────────┐  ┌──────────────┐  ┌───────────────────┐ │
-│  │ Monitor  │  │   Policy     │  │   Action          │ │
-│  │ Engine   │──│   Engine     │──│   Executor        │ │
-│  │          │  │              │  │                   │ │
-│  │ - health │  │ - allow/deny │  │ - nix config gen  │ │
-│  │ - metrics│  │ - escalation │  │ - safe-rebuild    │ │
-│  │ - logs   │  │ - audit log  │  │ - service mgmt   │ │
-│  └──────────┘  └──────────────┘  └───────────────────┘ │
-│       │                                    │            │
-│       ▼                                    ▼            │
-│  ┌──────────┐                    ┌───────────────────┐  │
-│  │   LLM    │                    │   TOTP Gate       │  │
-│  │ Backend  │                    │  (for critical    │  │
-│  │ (API/    │                    │   operations)     │  │
-│  │  local)  │                    └───────────────────┘  │
-│  └──────────┘                                           │
-└─────────────────────────────────────────────────────────┘
-         │                                   │
-         ▼                                   ▼
-   ┌──────────┐                    ┌───────────────────┐
-   │ External │                    │   NixOS System    │
-   │ LLM API  │                    │   (managed)       │
-   └──────────┘                    └───────────────────┘
+```mermaid
+flowchart TB
+    subgraph OpenClaw["OpenClaw Agent"]
+        A[Monitor Engine<br/>health, metrics, logs] --> B[Policy Engine<br/>allow/deny, escalation, audit log]
+        B --> C[Action Executor<br/>nix config gen, safe-rebuild, service mgmt]
+        C --> D[TOTP Gate<br/>for critical operations]
+        A --> E[LLM Backend<br/>API or local]
+    end
+    
+    E -->|reasoning| B
+    D -->|execute| F[NixOS System<br/>managed]
 ```
 
 ## Components

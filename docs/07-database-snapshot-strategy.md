@@ -9,31 +9,18 @@ Databases require special snapshot handling. A naive filesystem snapshot of a ru
 
 ## The Consistency Problem
 
-```
-Without coordination:
-┌──────────────────┐    ┌──────────────────┐
-│   PostgreSQL     │    │   Btrfs Snapshot  │
-│                  │    │                   │
-│  Write TX 1 ─────┼────┼── Captured ✓     │
-│  Write TX 2 ─────┼──┐ │                  │
-│  (in progress)   │  │ │                  │
-│  Write TX 2 ─────┼──┘ │── Half captured ✗│
-│  (continued)     │    │                  │
-└──────────────────┘    └──────────────────┘
-Result: Corrupt snapshot — TX 2 is partially written
-
-With coordination:
-┌──────────────────┐    ┌──────────────────┐
-│   PostgreSQL     │    │   Btrfs Snapshot  │
-│                  │    │                   │
-│  CHECKPOINT ─────┼────┼── Flush to disk  │
-│  pg_start_backup─┼────┼── Mark backup    │
-│  (writes frozen) │    │                  │
-│                  │    │── Snapshot taken ✓│
-│  pg_stop_backup──┼────┼── Resume writes  │
-│  Write TX 3 ─────┼────┼── Not in snapshot│
-└──────────────────┘    └──────────────────┘
-Result: Consistent snapshot — all data is complete
+```mermaid
+flowchart LR
+    subgraph Without["Without coordination"]
+        A[PostgreSQL<br/>Write TX 1] -->|captured| B[Btrfs Snapshot<br/>TX 1 OK]
+        C[PostgreSQL<br/>Write TX 2 in progress] -.->|half captured| D[Btrfs Snapshot<br/>TX 2 corrupt]
+    end
+    
+    subgraph With["With coordination"]
+        E[PostgreSQL<br/>CHECKPOINT] -->|flush to disk| F[Btrfs Snapshot]
+        E -->|mark backup| F
+        F -->|snapshot taken| G[Consistent snapshot]
+    end
 ```
 
 ## Strategy Overview
