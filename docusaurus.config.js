@@ -6,10 +6,10 @@ const config = {
   tagline: 'AI-managed infrastructure with NixOS, OpenClaw, Btrfs snapshots, and TOTP protection',
   favicon: 'img/favicon.ico',
 
-  url: 'https://stars-lab.github.io',
+  url: 'https://stars-labs.github.io',
   baseUrl: '/self-healing-nixos-infra/',
 
-  organizationName: 'stars-lab',
+  organizationName: 'stars-labs',
   projectName: 'self-healing-nixos-infra',
 
   onBrokenLinks: 'throw',
@@ -50,7 +50,7 @@ const config = {
             label: 'Tutorial',
           },
           {
-            href: 'https://github.com/stars-lab/self-healing-nixos-infra',
+            href: 'https://github.com/stars-labs/self-healing-nixos-infra',
             label: 'GitHub',
             position: 'right',
           },
