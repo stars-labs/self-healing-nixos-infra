@@ -1,0 +1,30 @@
+{
+  "link.title.Docs": {
+    "message": "文档",
+    "description": "The title of the footer links column with title=Docs in the footer"
+  },
+  "link.title.Resources": {
+    "message": "资源",
+    "description": "The title of the footer links column with title=Resources in the footer"
+  },
+  "link.item.label.Introduction": {
+    "message": "简介",
+    "description": "The label of footer link with label=Introduction linking to /"
+  },
+  "link.item.label.Architecture": {
+    "message": "架构",
+    "description": "The label of footer link with label=Architecture linking to /architecture"
+  },
+  "link.item.label.NixOS Manual": {
+    "message": "NixOS 手册",
+    "description": "The label of footer link with label=NixOS Manual linking to https://nixos.org/manual/nixos/stable/"
+  },
+  "link.item.label.Btrfs Wiki": {
+    "message": "Btrfs 维基",
+    "description": "The label of footer link with label=Btrfs Wiki linking to https://btrfs.readthedocs.io/"
+  },
+  "copyright": {
+    "message": "版权所有 © 2026 自愈式 NixOS 基础设施。使用 Docusaurus 构建。",
+    "description": "The footer copyright"
+  }
+}

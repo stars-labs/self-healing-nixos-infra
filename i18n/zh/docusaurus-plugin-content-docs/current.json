@@ -1,0 +1,18 @@
+{
+  "version.label": {
+    "message": "当前版本",
+    "description": "The label for version current"
+  },
+  "sidebar.tutorialSidebar.category.Bootstrap & Filesystem": {
+    "message": "引导与文件系统",
+    "description": "The label for category 'Bootstrap & Filesystem' in sidebar ' tutorialSidebar'"
+  },
+  "sidebar.tutorialSidebar.category.AI Infrastructure Management": {
+    "message": "AI 基础设施管理",
+    "description": "The label for category 'AI Infrastructure Management' in sidebar 'tutorialSidebar'"
+  },
+  "sidebar.tutorialSidebar.category.Security & Recovery": {
+    "message": "安全与恢复",
+    "description": "The label for category 'Security & Recovery' in sidebar 'tutorialSidebar'"
+  }
+}
