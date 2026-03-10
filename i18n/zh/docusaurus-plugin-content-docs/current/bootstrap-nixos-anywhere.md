@@ -9,23 +9,21 @@ title: 使用 nixos-anywhere 引导
 
 ## 工作原理
 
-```
-┌─────────────────┐     SSH      ┌─────────────────────────────┐
-│  本地机器        │─────────────│  目标服务器                 │
-│  (有 Nix)      │              │  (任何 Linux 发行版)        │
-│                 │              │                              │
-│  flake.nix      │   1. kexec   │  ┌───────────────────────┐  │
-│  disko 配置      │──────────────>  │ NixOS 安装程序 (RAM) │  │
-│                 │              │  └───────────┬───────────┘  │
-│                 │   2. disko   │              │               │
-│                 │──────────────>  分区 + 格式化磁盘          │
-│                 │              │              │               │
-│                 │   3. 安装    │              ▼               │
-│                 │──────────────>  从 flake 安装 nixos        │
-│                 │              │              │               │
-│                 │   4. 重启    │              ▼               │
-│                 │──────────────>  启动进入 NixOS            │
-└─────────────────┘              └─────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Local as 本地机器<br/>有 Nix
+    participant Target as 目标服务器<br/>任何 Linux 发行版
+    
+    Local->>Target: 1. kexec (SSH)
+    Note over Target: NixOS 安装程序 (RAM)
+    Target-->>Local: SSH 连接已建立
+    
+    Local->>Target: 2. disko (分区 + 格式化磁盘)
+    
+    Local->>Target: 3. 安装 (从 flake 安装 nixos)
+    
+    Local->>Target: 4. 重启
+    Note over Target: 启动进入 NixOS
 ```
 
 ## 前提条件

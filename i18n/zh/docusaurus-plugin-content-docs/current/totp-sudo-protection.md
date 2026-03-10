@@ -9,17 +9,10 @@ title: TOTP Sudo 保护
 
 ## 为什么 Sudo 需要 TOTP
 
-```
-没有 TOTP：
-  攻击者获得 SSH ──> sudo nixos-rebuild ──> 系统被攻陷
-
-有 TOTP：
-  攻击者获得 SSH ──> sudo nixos-rebuild ──> TOTP 提示
-                                                      │
-                                           攻击者没有
-                                           TOTP 密钥
-                                                      │
-                                                   阻止 ✓
+```mermaid
+flowchart LR
+    A[攻击者获得 SSH] -->|没有 TOTP| B[sudo nixos-rebuild] --> C[系统被攻陷]
+    A -->|有 TOTP| D[sudo nixos-rebuild] --> E[TOTP 提示] -->|攻击者没有密钥| F[阻止 ✓]
 ```
 
 TOTP 密钥存储在您的手机（或硬件令牌）上，而不是服务器上。即使服务器被攻陷，攻击者也无法生成有效的代码。
@@ -35,29 +28,13 @@ TOTP 密钥存储在您的手机（或硬件令牌）上，而不是服务器上
 
 ## PAM 身份验证流程
 
-```
-sudo nixos-rebuild switch
-          │
-          ▼
- ┌─────────────────────┐
- │    PAM 栈           │
- │                      │
- │  ┌────────────────┐  │
- │  │   pam_unix     │  │──> 密码检查（或 SSH 密钥）
- │  └────────┬───────┘  │
- │           │ 通过      │
- │  ┌────────▼───────┐  │
- │  │   pam_oath     │  │──> TOTP 检查（6 位数字代码）
- │  └────────┬───────┘  │
- │           │ 通过      │
- │  ┌────────▼───────┐  │
- │  │   pam_env      │  │──> 环境设置
- │  └────────────────┘  │
- │                      │
- └──────────┬───────────┘
-            │ 全部通过
-            ▼
-     命令执行
+```mermaid
+flowchart TB
+    A[sudo nixos-rebuild switch] --> B[PAM 栈]
+    B --> C[pam_unix<br/>密码检查或 SSH 密钥]
+    C -->|通过| D[pam_oath<br/>TOTP 检查 6 位数字代码]
+    D -->|通过| E[pam_env<br/>环境设置]
+    E -->|全部通过| F[命令执行]
 ```
 
 ## NixOS 配置

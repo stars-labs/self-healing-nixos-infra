@@ -69,8 +69,9 @@ sudo reboot
 
 整个系统在 Nix flakes 中定义。相同的 flake 输入产生相同的系统：
 
-```
-flake.lock (锁定)  ──>  nixos-rebuild  ──>  相同的系统状态
+```mermaid
+flowchart LR
+    A[flake.lock<br/>锁定] --> B[nixos-rebuild] --> C[相同的<br/>系统状态]
 ```
 
 ### 3. 纵深防御
