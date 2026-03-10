@@ -5,7 +5,7 @@
   },
   "sidebar.tutorialSidebar.category.Bootstrap & Filesystem": {
     "message": "引导与文件系统",
-    "description": "The label for category 'Bootstrap & Filesystem' in sidebar ' tutorialSidebar'"
+    "description": "The label for category 'Bootstrap & Filesystem' in sidebar 'tutorialSidebar'"
   },
   "sidebar.tutorialSidebar.category.AI Infrastructure Management": {
     "message": "AI 基础设施管理",
