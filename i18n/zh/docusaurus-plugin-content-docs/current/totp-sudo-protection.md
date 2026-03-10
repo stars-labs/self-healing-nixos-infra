@@ -130,6 +130,10 @@ qrencode -t ansiutf8 \
 
 这会在终端中显示二维码。使用您的身份验证器应用（Google Authenticator、Authy、1Password 等）扫描它。
 
+:::tip 备份恢复密钥
+注册后，最好的做法是将 **密钥本身**（`JBSWY3DPEHPK3PXP4ZTLMRQK6BZDG5A`）安全备份在密码管理器或打印保存。有了密钥，您可以随时在任何身份验证器应用上重新注册。
+:::
+
 ### 测试 TOTP 身份验证
 
 ```bash

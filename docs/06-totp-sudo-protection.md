@@ -107,6 +107,19 @@ qrencode -t ansiutf8 \
 
 This displays a QR code in your terminal. Scan it with your authenticator app (Google Authenticator, Authy, 1Password, etc.).
 
+:::tip Generate Recovery Codes
+After enrolling, generate a set of emergency one-time codes and store them offline (printed or in a password manager):
+
+```bash
+# Generate 10 emergency codes from the same secret
+for i in $(seq 0 9); do
+  oathtool --totp --base32 JBSWY3DPEHPK3PXP4ZTLMRQK6BZDG5A -N "+${i}min"
+done > ~/totp-emergency-codes.txt
+```
+
+These codes won't work as TOTP (they're time-bound), so a better approach is to keep the **secret key itself** (`JBSWY3DPEHPK3PXP4ZTLMRQK6BZDG5A`) backed up securely. With the secret, you can re-enroll any authenticator app at any time.
+:::
+
 ### Test TOTP Authentication
 
 ```bash

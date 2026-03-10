@@ -71,11 +71,12 @@ flowchart TB
 3. **[Btrfs 子卷布局](./btrfs-layout)** — 为快照和回滚设计文件系统
 4. **[Btrfs 快照与 Snapper](./btrfs-snapshots)** — 自动化快照创建和清理
 5. **[安装 OpenClaw](./install-openclaw)** — 设置 AI 基础设施运维代理
- 管理的6. **[AI infrastructure](./ai-managed-infra)** — 配置 AI 辅助操作
+6. **[AI 管理的基础设施](./ai-managed-infra)** — 配置 AI 辅助操作
 7. **[TOTP Sudo 保护](./totp-sudo-protection)** — 将临界操作置于 TOTP 之后
 8. **[数据库快照策略](./database-snapshot-strategy)** — 使用 Btrfs 实现一致的数据库备份
 9. **[灾难恢复](./disaster-recovery)** — 完整恢复流程
 10. **[AI 安全与回滚](./ai-safety-and-rollback)** — 防护措施和回滚工作流
+11. **[常见问题](./faq)** — 常见问题和故障排除
 
 :::warning 生产环境就绪
 本教程使用现实的、生产级配置。但在应用到生产服务器之前，请始终在预发环境中测试。每个环境都有独特的需求。

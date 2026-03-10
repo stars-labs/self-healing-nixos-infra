@@ -183,9 +183,9 @@ in
     description = "Consistent database Btrfs snapshot";
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.bash}/bin/bash -c '${./scripts/db-snapshot-auto.sh}'";
+      # 使用上面 modules/db-snapshot.nix 中定义的 db-snapshot 脚本
+      ExecStart = "/run/current-system/sw/bin/db-snapshot";
     };
-    path = with pkgs; [ btrfs-progs postgresql_16 coreutils ];
   };
 
   systemd.timers.db-snapshot = {
@@ -227,11 +227,14 @@ set -euo pipefail
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
+# 记录当前保存时间戳
+BEFORE=$(redis-cli LASTSAVE)
+
 # 触发后台保存
 redis-cli BGSAVE
 
-# 等待保存完成
-while [ "$(redis-cli LASTSAVE)" = "$(redis-cli LASTSAVE)" ]; do
+# 等待保存完成（LASTSAVE 在完成时变化）
+while [ "$(redis-cli LASTSAVE)" = "$BEFORE" ]; do
   sleep 1
 done
 

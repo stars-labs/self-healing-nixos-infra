@@ -170,9 +170,9 @@ Schedule regular consistent snapshots:
     description = "Consistent database Btrfs snapshot";
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.bash}/bin/bash -c '${./scripts/db-snapshot-auto.sh}'";
+      # Uses the db-snapshot script from modules/db-snapshot.nix above
+      ExecStart = "/run/current-system/sw/bin/db-snapshot";
     };
-    path = with pkgs; [ btrfs-progs postgresql_16 coreutils ];
   };
 
   systemd.timers.db-snapshot = {
@@ -214,11 +214,14 @@ set -euo pipefail
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
+# Record current save timestamp
+BEFORE=$(redis-cli LASTSAVE)
+
 # Trigger background save
 redis-cli BGSAVE
 
-# Wait for save to complete
-while [ "$(redis-cli LASTSAVE)" = "$(redis-cli LASTSAVE)" ]; do
+# Wait for save to complete (LASTSAVE changes when done)
+while [ "$(redis-cli LASTSAVE)" = "$BEFORE" ]; do
   sleep 1
 done
 

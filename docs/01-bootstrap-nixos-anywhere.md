@@ -154,6 +154,7 @@ This defines the disk layout that `nixos-anywhere` will apply. We use GPT with a
                     mountOptions = [
                       "noatime"
                       "space_cache=v2"
+                      "nodatacow"
                     ];
                   };
                   "@snapshots" = {

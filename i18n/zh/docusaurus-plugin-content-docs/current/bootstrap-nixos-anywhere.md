@@ -156,6 +156,7 @@ mkdir -p nixos-config && cd nixos-config
                     mountOptions = [
                       "noatime"
                       "space_cache=v2"
+                      "nodatacow"
                     ];
                   };
                   "@snapshots" = {

@@ -9,46 +9,24 @@ This final chapter defines the operating procedures for running AI-managed infra
 
 ## The Safety Model
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Safety Layers                         │
-│                                                         │
-│  Layer 5: Human oversight                               │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  TOTP approval for all destructive operations     │  │
-│  │  Emergency stop file to halt all AI actions        │  │
-│  │  Audit log review                                  │  │
-│  └───────────────────────────────────────────────────┘  │
-│                                                         │
-│  Layer 4: Policy engine                                 │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  Tier classification (autonomous/supervised/gated) │  │
-│  │  Rate limits (max actions per hour/day)            │  │
-│  │  Allowed action whitelist                          │  │
-│  └───────────────────────────────────────────────────┘  │
-│                                                         │
-│  Layer 3: Pre-change snapshots                          │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  Automatic Btrfs snapshot before every change      │  │
-│  │  Tagged with proposal ID for traceability          │  │
-│  │  Automatic rollback on health check failure        │  │
-│  └───────────────────────────────────────────────────┘  │
-│                                                         │
-│  Layer 2: NixOS guarantees                              │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  Atomic system activation (switch-to-configuration)│  │
-│  │  Previous generations always available in GRUB     │  │
-│  │  Declarative — no hidden state changes             │  │
-│  └───────────────────────────────────────────────────┘  │
-│                                                         │
-│  Layer 1: Filesystem safety                             │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  Btrfs COW — original data preserved until freed   │  │
-│  │  Checksums — silent corruption detected            │  │
-│  │  Subvolume isolation — blast radius limited        │  │
-│  └───────────────────────────────────────────────────┘  │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+block-beta
+    columns 1
+    block:L5["Layer 5: Human Oversight"]
+        L5A["TOTP approval for destructive ops • Emergency stop file • Audit log review"]
+    end
+    block:L4["Layer 4: Policy Engine"]
+        L4A["Tier classification (autonomous/supervised/gated) • Rate limits • Action whitelist"]
+    end
+    block:L3["Layer 3: Pre-Change Snapshots"]
+        L3A["Auto Btrfs snapshot before every change • Tagged with proposal ID • Auto rollback on failure"]
+    end
+    block:L2["Layer 2: NixOS Guarantees"]
+        L2A["Atomic system activation • Previous generations in GRUB • Declarative, no hidden state"]
+    end
+    block:L1["Layer 1: Filesystem Safety"]
+        L1A["Btrfs COW preserves original data • Checksums detect corruption • Subvolume isolation limits blast radius"]
+    end
 ```
 
 ## AI Guardrails
@@ -399,47 +377,20 @@ Track these metrics to assess the health of your AI-managed infrastructure:
 
 ## Complete System Summary
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                 Self-Healing NixOS Infrastructure                 │
-│                                                                  │
-│  ┌─────────────┐     ┌──────────────┐     ┌──────────────────┐  │
-│  │  OpenClaw    │────>│  Policy      │────>│  TOTP Gate       │  │
-│  │  AI Operator │     │  Engine      │     │  (human review)  │  │
-│  │              │     │              │     │                  │  │
-│  │  • Monitor   │     │  • Tier 1-3  │     │  • 6-digit code  │  │
-│  │  • Detect    │     │  • Rate limit│     │  • pam_oath      │  │
-│  │  • Propose   │     │  • Whitelist │     │  • Audit logged  │  │
-│  └─────────────┘     └──────────────┘     └────────┬─────────┘  │
-│                                                     │            │
-│                                              ┌──────▼─────────┐  │
-│                                              │  safe-rebuild   │  │
-│                                              │                 │  │
-│                                              │  1. Snapshot    │  │
-│                                              │  2. Rebuild     │  │
-│                                              │  3. Health check│  │
-│                                              │  4. Commit or   │  │
-│                                              │     rollback    │  │
-│                                              └──────┬─────────┘  │
-│                                                     │            │
-│  ┌──────────────────────────────────────────────────▼─────────┐  │
-│  │                    Btrfs Filesystem                         │  │
-│  │                                                            │  │
-│  │  @root (/)     @home (/home)     @db (/var/lib/db)        │  │
-│  │  @nix (/nix)   @log (/var/log)   @snapshots (/.snapshots) │  │
-│  │                                                            │  │
-│  │  Snapper: hourly timeline + pre/post rebuild pairs         │  │
-│  │  Backup:  daily btrfs send/receive to remote               │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                  │
-│  Recovery options:                                               │
-│  • snapper undochange (instant, online)                          │
-│  • NixOS generation rollback (boot menu)                         │
-│  • Btrfs snapshot restore (full subvolume swap)                  │
-│  • Remote backup restore (disaster recovery)                     │
-│  • Clean reinstall from flake (compromise recovery)              │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Infra["Self-Healing NixOS Infrastructure"]
+        OC["OpenClaw AI Operator<br/>Monitor • Detect • Propose"] --> PE["Policy Engine<br/>Tier 1-3 • Rate limit • Whitelist"]
+        PE --> TG["TOTP Gate<br/>6-digit code • pam_oath • Audit logged"]
+        TG --> SR["safe-rebuild<br/>1. Snapshot 2. Rebuild<br/>3. Health check 4. Commit/rollback"]
+        SR --> BF["Btrfs Filesystem<br/>@root / @home / @db / @nix / @log / @snapshots<br/>Snapper: hourly timeline + pre/post rebuild pairs<br/>Backup: daily btrfs send/receive to remote"]
+    end
+
+    BF --> R1["Recovery: snapper undochange"]
+    BF --> R2["Recovery: NixOS generation rollback"]
+    BF --> R3["Recovery: Btrfs snapshot restore"]
+    BF --> R4["Recovery: Remote backup restore"]
+    BF --> R5["Recovery: Clean reinstall from flake"]
 ```
 
 ## Final Thoughts
@@ -455,3 +406,5 @@ The combination of:
 creates an environment where AI can experiment and learn while humans maintain ultimate control. When the AI makes a mistake, recovery is one command away. When it makes a good decision, the system improves without human intervention.
 
 Start conservative — restrict OpenClaw to Tier 1 actions only. As you build confidence, gradually expand its autonomy. The safety layers are there so you can move fast without fear.
+
+Have questions? Check the [FAQ](./faq) for answers to common questions about this architecture.
