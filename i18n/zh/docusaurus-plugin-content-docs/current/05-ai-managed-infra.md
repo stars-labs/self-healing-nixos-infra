@@ -3,72 +3,72 @@ sidebar_position: 7
 title: AI 管理的基础设施
 ---
 
-# AI 管理的基础设施
+# AI-Managed Infrastructure
 
-安装 OpenClaw 后，本章定义运维模型：AI 自主管理什么、什么需要人类批准，以及整个变更管道如何工作。
+With OpenClaw installed, this chapter defines the operational model: what the AI manages autonomously, what requires human approval, and how the entire change pipeline works.
 
-## 运维模型
+## Operational Model
 
 ```mermaid
 flowchart TB
-    A[检测问题] --> B[分类严重程度]
-    B --> C{需要批准？}
-    C -->|否| D[应用]
-    C -->|是| E[批准（如需要）]
+    A[Detect Issue] --> B[Classify Severity]
+    B --> C{Approval Required?}
+    C -->|No| D[Apply]
+    C -->|Yes| E[Approve (if req)]
     E --> D
-    D --> F{验证}
-    F -->|通过| G[提交]
-    F -->|失败| H[回滚]
+    D --> F{Verify}
+    F -->|Pass| G[Commit]
+    F -->|Fail| H[Rollback]
 ```
 
-## 操作分类
+## Action Classification
 
-OpenClaw 将每个提议的操作分类为三个层级之一：
+OpenClaw classifies every proposed action into one of three tiers:
 
-### 第 1 层：自主（无需批准）
+### Tier 1: Autonomous (No Approval)
 
-低风险、可逆操作，OpenClaw 可以立即执行：
+Low-risk, reversible operations that OpenClaw can execute immediately:
 
-| 操作 | 示例 | 为什么自主 |
+| Action | Example | Why Autonomous |
 |---|---|---|
-| 日志轮转 | `journalctl --vacuum-size=500M` | 无数据丢失，可恢复 |
-| 临时清理 | 删除超过 7 天的 `/tmp` 文件 | 非关键数据 |
-| 服务重启 | `systemctl restart nginx`（故障后）| 自我修正，无配置更改 |
-| 指标收集 | 磁盘/CPU/内存监控 | 只读 |
-| 证书状态 | 检查过期日期 | 只读 |
+| Log rotation | `journalctl --vacuum-size=500M` | No data loss, recoverable |
+| Temp cleanup | Remove `/tmp` files older than 7 days | Non-critical data |
+| Service restart | `systemctl restart nginx` (after failure) | Self-correcting, no config change |
+| Metric collection | Disk/CPU/memory monitoring | Read-only |
+| Certificate status | Check expiry dates | Read-only |
 
-### 第 2 层：监督（通知 + 自动应用）
+### Tier 2: Supervised (Notification + Auto-Apply)
 
-中等风险操作，除非人类在窗口期内干预，否则继续进行：
+Medium-risk operations that proceed unless a human intervenes within a window:
 
-| 操作 | 示例 | 窗口期 |
+| Action | Example | Window |
 |---|---|---|
-| 软件包安全更新 | 单个 CVE 补丁 | 30 分钟 |
-| Swap 配置 | 内存紧张时添加 swap | 15 分钟 |
-| 防火墙速率限制 | 攻击下添加临时速率限制 | 5 分钟 |
+| Package security update | Single CVE patch | 30 minutes |
+| Swap configuration | Add swap when memory is critical | 15 minutes |
+| Firewall rate-limit | Add temporary rate limit under attack | 5 minutes |
 
-### 第 3 层：门禁（需要 TOTP）
+### Tier 3: Gated (TOTP Required)
 
-高风险操作，必须使用 TOTP 验证码明确批准：
+High-risk operations that must be explicitly approved with a TOTP code:
 
-| 操作 | 示例 | 为什么门禁 |
+| Action | Example | Why Gated |
 |---|---|---|
-| `nixos-rebuild switch` | 系统配置更改 | 可能破坏启动 |
-| `nixos-rebuild boot` | 下次启动配置 | 影响重启 |
-| 防火墙规则更改 | 打开/关闭端口 | 安全影响 |
-| 用户管理 | 添加/删除用户 | 访问控制 |
-| 网络配置 | IP、DNS、路由更改 | 可能失去连接 |
-| 数据库迁移 | 模式更改 | 数据完整性 |
+| `nixos-rebuild switch` | System configuration change | Could break boot |
+| `nixos-rebuild boot` | Next-boot configuration | Affects reboot |
+| Firewall rule change | Open/close ports | Security impact |
+| User management | Add/remove users | Access control |
+| Network config | IP, DNS, routing changes | Could lose connectivity |
+| Database migration | Schema changes | Data integrity |
 
-## 策略配置
+## Policy Configuration
 
-策略引擎在 Nix 模块中定义：
+The policy engine is defined in a Nix module:
 
 ```nix title="modules/openclaw-policy.nix"
 { config, pkgs, lib, ... }:
 {
   services.openclaw.settings.policy = {
-    # 第 1 层：自主操作
+    # Tier 1: Autonomous actions
     autonomous = {
       allowedActions = [
         "restart-failed-service"
@@ -79,22 +79,22 @@ OpenClaw 将每个提议的操作分类为三个层级之一：
       ];
 
       constraints = {
-        # 每小时最多 5 个自主操作（防止操作循环）
+        # Max 5 autonomous actions per hour (prevent action loops)
         maxActionsPerHour = 5;
 
-        # 可以自主重启的服务
+        # Services that can be restarted autonomously
         restartableServices = [
           "nginx"
           "postgresql"
           "openssh"
         ];
 
-        # 每个服务每小时最多 3 次重启
+        # Max 3 restarts per service per hour
         maxRestartsPerServicePerHour = 3;
       };
     };
 
-    # 第 2 层：监督操作（延迟后自动应用）
+    # Tier 2: Supervised actions (auto-apply with delay)
     supervised = {
       allowedActions = [
         "security-package-update"
@@ -102,18 +102,18 @@ OpenClaw 将每个提议的操作分类为三个层级之一：
         "temporary-rate-limit"
       ];
 
-      # 通知渠道
+      # Notification channel
       notifyCommand = "${pkgs.curl}/bin/curl -X POST https://hooks.slack.com/your-webhook -d '{\"text\": \"OpenClaw action pending\"}'";
 
-      defaultWindow = "30m";  # 自动应用前的时间
+      defaultWindow = "30m";  # Time before auto-apply
 
       overrides = {
-        "temporary-rate-limit" = { window = "5m"; };  # 主动威胁更快
+        "temporary-rate-limit" = { window = "5m"; };  # Faster for active threats
         "add-swap" = { window = "15m"; };
       };
     };
 
-    # 第 3 层：门禁操作（需要 TOTP）
+    # Tier 3: Gated actions (require TOTP)
     gated = {
       actions = [
         "nixos-rebuild-switch"
@@ -124,37 +124,37 @@ OpenClaw 将每个提议的操作分类为三个层级之一：
         "database-migration"
       ];
 
-      # 所有门禁操作都通过 TOTP sudo
+      # All gated actions go through TOTP sudo
       requireTOTP = true;
     };
 
-    # 全局安全限制
+    # Global safety limits
     safety = {
-      # 紧急停止 — 禁用所有自主操作
+      # Emergency stop — disable all autonomous actions
       emergencyStopFile = "/var/lib/openclaw/STOP";
 
-      # 每天最大变更数
+      # Max total changes per day
       maxChangesPerDay = 20;
 
-      # 任何变更前需要快照
+      # Require snapshot before any change
       requirePreSnapshot = true;
 
-      # 每次变更后需要健康检查
+      # Health check after every change
       requirePostHealthCheck = true;
       healthCheckTimeout = "120s";
 
-      # 健康检查失败时自动回滚
+      # Automatic rollback on health check failure
       autoRollbackOnFailure = true;
     };
   };
 }
 ```
 
-## 变更提案工作流
+## Change Proposal Workflow
 
-当 OpenClaw 检测到问题时，它会生成一个变更提案：
+When OpenClaw detects an issue, it generates a change proposal:
 
-### 步骤 1：检测
+### Step 1: Detection
 
 ```json
 {
@@ -170,9 +170,9 @@ OpenClaw 将每个提议的操作分类为三个层级之一：
 }
 ```
 
-### 步骤 2：分析和提案
+### Step 2: Analysis and Proposal
 
-OpenClaw 的 LLM 分析问题并生成提案：
+OpenClaw's LLM analyzes the issue and generates a proposal:
 
 ```json
 {
@@ -201,121 +201,121 @@ OpenClaw 的 LLM 分析问题并生成提案：
 }
 ```
 
-### 步骤 3：执行
+### Step 3: Execution
 
 ```
-第 1 层操作 (rotate-logs):
-  ✓ 自主 — 立即执行
+Tier 1 action (rotate-logs):
+  ✓ Autonomous — execute immediately
   ✓ journalctl --vacuum-size=2G
-  ✓ 释放了 8.7GB
-  ✓ 记录到审计追踪
+  ✓ Freed 8.7GB
+  ✓ Logged to audit trail
 
-第 3 层操作 (nixos-rebuild-switch):
-  → 需要 TOTP 批准
-  → 通知已发送给运维人员
-  → 等待批准...
-  → 运维人员提供 TOTP 码
-  → 拍摄预重建快照
-  → 执行 nixos-rebuild switch
-  → 健康检查通过
-  → 变更已提交
+Tier 3 action (nixos-rebuild-switch):
+  → Requires TOTP approval
+  → Notification sent to operator
+  → Waiting for approval...
+  → Operator provides TOTP code
+  → Pre-rebuild snapshot taken
+  → nixos-rebuild switch executed
+  → Health check passed
+  → Change committed
 ```
 
-## 示例场景
+## Example Scenarios
 
-### 场景 1：内存使用率高
-
-```
-检测：  内存使用率 92%，swap 80%
-分析：  PostgreSQL 消耗 6GB（预期：2GB）
-        可能是由于未 vacuum 的表
-
-第 1 层（自主）：
-  → 重启 PostgreSQL 服务
-  → 结果：内存降至 45%
-
-第 3 层（门禁，如果重启无效）：
-  → 提议：更改 NixOS 配置以限制 PostgreSQL 内存
-  → 需要 TOTP 批准
-```
-
-### 场景 2：检测到 CVE
+### Scenario 1: High Memory Usage
 
 ```
-检测：  CVE-2024-XXXX in openssl（已安装版本易受攻击）
-分析：  nixpkgs 中有安全更新可用
+Detection:  Memory usage at 92%, swap at 80%
+Analysis:   PostgreSQL consuming 6GB (expected: 2GB)
+            Likely caused by unvacuumed tables
 
-第 2 层（监督）：
-  → 提议：nix flake update + nixos-rebuild
-  → 通知已发送给运维人员
-  → 30 分钟窗口期后自动应用
-  → 运维人员可以取消或提前批准
-  → 拍摄预重建快照
-  → 成功应用
+Tier 1 (autonomous):
+  → Restart PostgreSQL service
+  → Result: Memory drops to 45%
+
+Tier 3 (gated, if restart doesn't help):
+  → Propose NixOS config change to limit PostgreSQL memory
+  → Requires TOTP approval
 ```
 
-### 场景 3：服务崩溃循环
+### Scenario 2: CVE Detected
 
 ```
-检测：  nginx 在 10 分钟内失败 3 次
-分析：  /etc/nginx/nginx.conf 配置语法错误
-       （由上次 nixos-rebuild 引入）
+Detection:  CVE-2024-XXXX in openssl (installed version vulnerable)
+Analysis:   Security update available in nixpkgs
 
-第 1 层（自主）：
-  → 检查上次 snapper 前后配对
-  → 识别上次重建中更改的配置
-
-第 3 层（门禁）：
-  → 提议：回滚到之前的快照
-  → 需要 TOTP 批准
-  → 应用 snapper undochange
-  → nginx 启动成功
+Tier 2 (supervised):
+  → Propose: nix flake update + nixos-rebuild
+  → Notification sent to operator
+  → 30-minute window before auto-apply
+  → Operator can cancel or approve early
+  → Pre-rebuild snapshot taken
+  → Applied successfully
 ```
 
-## 紧急停止
+### Scenario 3: Service Crash Loop
 
-如果 OpenClaw 行为异常，触发紧急停止：
+```
+Detection:  nginx failed 3 times in 10 minutes
+Analysis:   Config syntax error in /etc/nginx/nginx.conf
+            (introduced by last nixos-rebuild)
+
+Tier 1 (autonomous):
+  → Check last snapper pre/post pair
+  → Identify config changed in last rebuild
+
+Tier 3 (gated):
+  → Propose: rollback to previous snapshot
+  → Requires TOTP approval
+  → snapper undochange applied
+  → nginx starts successfully
+```
+
+## Emergency Stop
+
+If OpenClaw is behaving unexpectedly, trigger an emergency stop:
 
 ```bash
-# 创建停止文件 — OpenClaw 立即停止所有自主操作
+# Create the stop file — OpenClaw halts all autonomous actions immediately
 sudo touch /var/lib/openclaw/STOP
 
-# 检查状态
+# Check status
 sudo systemctl status openclaw
-# 应显示："EMERGENCY STOP: autonomous actions disabled"
+# Should show: "EMERGENCY STOP: autonomous actions disabled"
 
-# 恢复操作
+# Resume operations
 sudo rm /var/lib/openclaw/STOP
 ```
 
-:::danger 何时使用紧急停止
-- OpenClaw 处于操作循环中（反复重启服务）
-- 正在提出意外的配置更改
-- 您需要调查 OpenClaw 的行为而不受干扰
-- 在手动维护窗口期间
+:::danger When to Use Emergency Stop
+- OpenClaw is in an action loop (repeatedly restarting a service)
+- Unexpected configuration changes are being proposed
+- You need to investigate OpenClaw's behavior without interference
+- During manual maintenance windows
 :::
 
-## 监控 OpenClaw
+## Monitoring OpenClaw
 
-### 审计日志
+### Audit Log
 
 ```bash
-# 查看最近的操作
+# View recent actions
 sudo tail -20 /var/log/openclaw/audit.jsonl | jq .
 
-# 按层级统计今天的操作
+# Count actions by tier today
 sudo cat /var/log/openclaw/audit.jsonl | \
   jq -r 'select(.date == "2024-01-15") | .tier' | \
   sort | uniq -c
 
-# 查找失败的操作
+# Find failed actions
 sudo cat /var/log/openclaw/audit.jsonl | \
   jq 'select(.status == "failed")'
 ```
 
-### Prometheus 指标
+### Prometheus Metrics
 
-OpenClaw 在 `localhost:9101/metrics` 暴露指标：
+OpenClaw exposes metrics at `localhost:9101/metrics`:
 
 ```
 # HELP openclaw_actions_total Total actions executed
@@ -334,6 +334,6 @@ openclaw_proposals_pending 0
 openclaw_rollbacks_total 2
 ```
 
-## 下一步
+## What's Next
 
-AI 运维代理已配置了清晰的分层策略。接下来，我们将设置保护第 3 层操作的 [TOTP sudo 保护](./totp-sudo-protection) — 这是 AI 提案和系统变更之间的关键安全层。
+The AI operator is configured with a clear tiered policy. Next, we'll set up the [TOTP sudo protection](./totp-sudo-protection) that gates Tier 3 operations — the critical security layer between AI proposals and system changes.

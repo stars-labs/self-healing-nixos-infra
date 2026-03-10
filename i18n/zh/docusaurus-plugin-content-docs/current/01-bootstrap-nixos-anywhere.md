@@ -1,67 +1,67 @@
 ---
 sidebar_position: 3
-title: 使用 nixos-anywhere 引导
+title: 使用 nixos-anywhere 引导安装
 ---
 
-# 使用 nixos-anywhere 引导
+# Bootstrap with nixos-anywhere
 
-`nixos-anywhere` 允许您在任何具有 root SSH 访问权限的 Linux 服务器上安装 NixOS — 无需 ISO 镜像，无需控制台访问，无需特定供应商的工具。它通过 kexec 进入 RAM 中的 NixOS 安装程序，对磁盘进行分区，然后安装您声明的配置。
+`nixos-anywhere` lets you install NixOS on any Linux server with root SSH access — no ISO image, no console access, no provider-specific tooling. It works by kexec-ing into a NixOS installer in RAM, partitioning the disk, and installing your declared configuration.
 
-## 工作原理
+## How It Works
 
 ```mermaid
 sequenceDiagram
-    participant Local as 本地机器<br/>有 Nix
-    participant Target as 目标服务器<br/>任何 Linux 发行版
+    participant Local as Local Machine<br/>has Nix
+    participant Target as Target Server<br/>any Linux distro
     
     Local->>Target: 1. kexec (SSH)
-    Note over Target: NixOS 安装程序 (RAM)
-    Target-->>Local: SSH 连接已建立
+    Note over Target: NixOS installer (RAM)
+    Target-->>Local: SSH connection established
     
-    Local->>Target: 2. disko (分区 + 格式化磁盘)
+    Local->>Target: 2. disko (partition + format disk)
     
-    Local->>Target: 3. 安装 (从 flake 安装 nixos)
+    Local->>Target: 3. install (nixos-install from flake)
     
-    Local->>Target: 4. 重启
-    Note over Target: 启动进入 NixOS
+    Local->>Target: 4. reboot
+    Note over Target: Boot into NixOS
 ```
 
-## 前提条件
+## Prerequisites
 
-在本地机器上：
+On your local machine:
 
 ```bash
-# 如果没有 Nix，安装它
+# Install Nix if you don't have it
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh
 
-# 验证 nix 可用
+# Verify nix is available
 nix --version
 ```
 
-在目标服务器上：
-- 使用公钥的 root SSH 访问
-- 至少 2 GB 内存（kexec 安装程序在内存中运行）
-- 至少 20 GB 磁盘空间
+On the target server:
+- Root SSH access with your public key
+- At least 2 GB RAM (kexec installer runs in memory)
+- At least 20 GB disk space
 
-:::warning 破坏性操作
-`nixos-anywhere` 将**清除目标磁盘**。确保您有备份，并且正在针对正确的服务器。双检 IP 地址。
+:::warning Destructive Operation
+`nixos-anywhere` will **wipe the target disk**. Make sure you have backups and are targeting the correct server. Double-check the IP address.
 :::
 
-## 项目结构
+## Project Structure
 
-为您的 NixOS 配置创建一个本地目录：
+Create a local directory for your NixOS configuration:
 
 ```bash
 mkdir -p nixos-config && cd nixos-config
 ```
 
-## Flake 配置
+## Flake Configuration
 
-创建 `flake.nix` — 这是整个系统配置的入口点：
+Create `flake.nix` — this is the entry point for your entire system configuration:
 
 ```nix title="flake.nix"
 {
-  description = "自愈式 NixOS 服务器";
+  description = "Self-healing NixOS server";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
@@ -84,9 +84,9 @@ mkdir -p nixos-config && cd nixos-config
 }
 ```
 
-## Disko 磁盘配置
+## Disko Disk Configuration
 
-这定义了 `nixos-anywhere` 将应用的磁盘布局。我们使用 GPT，带有 EFI 系统分区和带有子卷的 Btrfs 分区：
+This defines the disk layout that `nixos-anywhere` will apply. We use GPT with an EFI System Partition and a Btrfs partition with subvolumes:
 
 ```nix title="disk-config.nix"
 { lib, ... }:
@@ -95,8 +95,8 @@ mkdir -p nixos-config && cd nixos-config
     disk = {
       main = {
         type = "disk";
-        # 更改此以匹配目标服务器的磁盘
-        # 常见：/dev/sda, /dev/vda, /dev/nvme0n1
+        # Change this to match your target server's disk
+        # Common: /dev/sda, /dev/vda, /dev/nvme0n1
         device = "/dev/sda";
         content = {
           type = "gpt";
@@ -115,7 +115,7 @@ mkdir -p nixos-config && cd nixos-config
               size = "100%";
               content = {
                 type = "btrfs";
-                extraArgs = [ "-f" ]; # 强制覆盖
+                extraArgs = [ "-f" ]; # force overwrite
                 subvolumes = {
                   "@root" = {
                     mountpoint = "/";
@@ -175,32 +175,32 @@ mkdir -p nixos-config && cd nixos-config
 }
 ```
 
-:::tip 磁盘设备名称
-`device` 字段必须与目标服务器的主磁盘匹配。常见名称：
+:::tip Disk Device Name
+The `device` field must match the target server's primary disk. Common names:
 - **KVM/QEMU VPS**: `/dev/vda`
-- **Hetzner 专用**: `/dev/nvme0n1`
-- **通用 VPS**: `/dev/sda`
+- **Hetzner dedicated**: `/dev/nvme0n1`
+- **Generic VPS**: `/dev/sda`
 
-您可以在开始前在目标服务器上运行 `lsblk` 找到它。
+You can find it by running `lsblk` on the target server before starting.
 :::
 
-## 系统配置
+## System Configuration
 
 ```nix title="configuration.nix"
 { config, pkgs, ... }:
 {
-  # 启动
+  # Boot
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # 网络
+  # Networking
   networking.hostName = "nixos-server";
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 ];
   };
 
-  # 启用 SSH
+  # Enable SSH
   services.openssh = {
     enable = true;
     settings = {
@@ -209,12 +209,12 @@ mkdir -p nixos-config && cd nixos-config
     };
   };
 
-  # 您的 SSH 公钥
+  # Your SSH public key
   users.users.root.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3Nz... your-key-here"
   ];
 
-  # 创建管理员用户
+  # Create an admin user
   users.users.admin = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
@@ -223,7 +223,7 @@ mkdir -p nixos-config && cd nixos-config
     ];
   };
 
-  # 基本软件包
+  # Basic packages
   environment.systemPackages = with pkgs; [
     vim
     git
@@ -232,14 +232,14 @@ mkdir -p nixos-config && cd nixos-config
     compsize
   ];
 
-  # 启用 Btrfs 清理定时器
+  # Enable Btrfs scrub timer
   services.btrfs.autoScrub = {
     enable = true;
     interval = "weekly";
     fileSystems = [ "/" ];
   };
 
-  # 时区和语言
+  # Timezone and locale
   time.timeZone = "UTC";
   i18n.defaultLocale = "en_US.UTF-8";
 
@@ -247,58 +247,58 @@ mkdir -p nixos-config && cd nixos-config
 }
 ```
 
-## 运行 nixos-anywhere
+## Running nixos-anywhere
 
-配置准备就绪后，在目标上安装 NixOS：
+With your configuration ready, install NixOS on the target:
 
 ```bash
-# 将 TARGET_IP 替换为您服务器的 IP 地址
+# Replace TARGET_IP with your server's IP address
 nix run github:nix-community/nixos-anywhere -- \
   --flake .#server \
   --target-host root@TARGET_IP
 ```
 
-根据网络速度，此过程需要 5-15 分钟。您将看到：
+The process takes 5-15 minutes depending on network speed. You'll see:
 
-1. **SSH 连接**到目标
-2. **kexec** 进入 RAM 中的 NixOS 安装程序
-3. **磁盘分区**通过 disko
-4. **NixOS 安装**从您的 flake
-5. **重启**进入新系统
+1. **SSH connection** to the target
+2. **kexec** into NixOS installer in RAM
+3. **Disk partitioning** via disko
+4. **NixOS installation** from your flake
+5. **Reboot** into the new system
 
-:::note 连接断开是正常的
-SSH 连接会在服务器重启进入 kexec 安装程序时断开，最终安装后再次断开。这是预期的 — `nixos-anywhere` 会自动重新连接。
+:::note Connection Drop Is Normal
+The SSH connection will drop when the server reboots into the kexec installer and again after final install. This is expected — `nixos-anywhere` reconnects automatically.
 :::
 
-## 安装后验证
+## Post-Install Verification
 
-安装完成后，SSH 到您的新 NixOS 服务器：
+After the install completes, SSH into your new NixOS server:
 
 ```bash
 ssh admin@TARGET_IP
 ```
 
-验证系统：
+Verify the system:
 
 ```bash
-# 检查 NixOS 版本
+# Check NixOS version
 nixos-version
 
-# 验证 Btrfs 子卷
+# Verify Btrfs subvolumes
 sudo btrfs subvolume list /
-# 应显示：@root, @home, @nix, @log, @db, @snapshots
+# Should show: @root, @home, @nix, @log, @db, @snapshots
 
-# 检查 Btrfs 文件系统
+# Check Btrfs filesystem
 sudo btrfs filesystem show /
 
-# 检查挂载点
+# Check mount points
 findmnt -t btrfs
 
-# 验证压缩是否启用
+# Verify compression is active
 sudo compsize /
 ```
 
-预期的 `btrfs subvolume list /` 输出：
+Expected `btrfs subvolume list /` output:
 
 ```
 ID 256 gen 50 top level 5 path @root
@@ -309,35 +309,35 @@ ID 260 gen 42 top level 5 path @db
 ID 261 gen 40 top level 5 path @snapshots
 ```
 
-## 故障排除
+## Troubleshooting
 
-### kexec 后"连接被拒绝"
+### "Connection refused" after kexec
 
-服务器的 host key 在 kexec 后会更改。删除旧 key：
+The server's host key changes after kexec. Remove the old key:
 
 ```bash
 ssh-keygen -R TARGET_IP
 ```
 
-### 找不到磁盘设备
+### Disk device not found
 
-如果 disko 找不到磁盘，SSH 到安装程序并检查：
+If disko can't find the disk, SSH into the installer and check:
 
 ```bash
-# 在安装程序阶段，使用以下方式 SSH 进入：
+# During the installer phase, SSH in with:
 ssh root@TARGET_IP -p 22
 lsblk
 ```
 
-使用正确的设备路径更新 `disk-config.nix`。
+Update `disk-config.nix` with the correct device path.
 
-### 安装期间内存不足
+### Out of memory during install
 
-kexec 安装程序在内存中运行。如果服务器可用内存少于 1.5 GB，安装程序可能会失败。考虑：
+The kexec installer runs in RAM. If the server has less than 1.5 GB available, the installer may fail. Consider:
 
-- 在运行 nixos-anywhere 前停止不必要的服务
-- 使用更多内存的服务器
-- 添加 `--build-on-remote` 标志在目标上构建系统
+- Stopping unnecessary services before running nixos-anywhere
+- Using a server with more RAM
+- Adding `--build-on-remote` flag to build the system on the target
 
 ```bash
 nix run github:nix-community/nixos-anywhere -- \
@@ -346,35 +346,35 @@ nix run github:nix-community/nixos-anywhere -- \
   --build-on-remote
 ```
 
-## 生产环境提示
+## Production Tips
 
-:::tip 锁定一切
-始终使用 `flake.lock` 锁定您的 nixpkgs 版本。有意运行 `nix flake update`，不要意外运行。将 lock 文件提交到版本控制。
+:::tip Pin Everything
+Always use `flake.lock` to pin your nixpkgs version. Run `nix flake update` deliberately, not accidentally. Commit your lock file to version control.
 :::
 
-:::tip 先在本地测试
-在部署到真实服务器之前，在 VM 中测试您的配置：
+:::tip Test Locally First
+Before deploying to a real server, test your configuration in a VM:
 
 ```bash
-# 在 QEMU VM 中构建和运行
+# Build and run in a QEMU VM
 nix run .#nixosConfigurations.server.config.system.build.vm
 ```
 :::
 
-:::tip 幂等重建
-初始安装后，使用 `nixos-rebuild` 管理服务器：
+:::tip Idempotent Rebuilds
+After the initial install, manage the server with `nixos-rebuild`:
 
 ```bash
-# 在服务器上
+# On the server
 sudo nixos-rebuild switch --flake /etc/nixos#server
 
-# 或远程
+# Or remotely
 nixos-rebuild switch --flake .#server \
   --target-host admin@TARGET_IP \
   --use-remote-sudo
 ```
 :::
 
-## 下一步
+## What's Next
 
-服务器正在运行带有 Btrfs 的 NixOS。接下来，让我们详细查看 [Btrfs 子卷布局](./btrfs-layout)，了解每个子卷存在的原因。
+The server is running NixOS with Btrfs. Next, let's examine the [Btrfs subvolume layout](./btrfs-layout) in detail and understand why each subvolume exists.

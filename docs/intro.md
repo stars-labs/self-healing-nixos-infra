@@ -14,6 +14,7 @@ By the end of this guide, you'll have a server that:
 
 - Runs **NixOS** installed remotely via `nixos-anywhere` — no ISO, no console access needed
 - Uses a **Btrfs** filesystem with a carefully designed subvolume layout
+- Implements **Impermanence** ("Erase your darlings") for an ephemeral, stateless root filesystem
 - Takes **automatic snapshots** before every system change
 - Runs **OpenClaw**, an AI infrastructure operator that monitors and proposes fixes
 - Gates **critical operations** (`nixos-rebuild switch`, config changes) behind **TOTP authentication**
@@ -26,12 +27,23 @@ flowchart TB
         A[OpenClaw<br/>AI Agent] -->|monitor| B[System Health]
         A -->|propose| C[TOTP Gate<br/>pam_oath]
         C -->|approve| D[nixos-rebuild]
-        B -->|check| E[Btrfs Subvolumes]
+        B -->|check| E[Btrfs Subvolumes<br/>& Impermanence]
         D -->|apply| E
         E -->|snapshot| F[Snapshot<br/>before change]
-        F -->|failure| G[Rollback<br/>instant]
+        F -->|failure| G[Rollback<br/>& Wipe Root]
     end
 ```
+
+## Example: Atomic Database Upgrades
+
+Imagine you have both **PostgreSQL** and **MySQL** running on your server, and you deploy an AI agent to keep them updated. Upgrading databases is traditionally risky: what if the PostgreSQL upgrade succeeds, but the MySQL upgrade fails and corrupts its data?
+
+With this self-healing architecture, the process is inherently safe:
+
+1. **Pre-upgrade Snapshot:** Before the AI applies the new configuration, the system automatically takes an instantaneous, read-only Btrfs snapshot of both your system state and database subvolumes (e.g., `/var/lib/postgresql` and `/var/lib/mysql`).
+2. **The Upgrade:** The AI applies the NixOS configuration change, updating the binaries and restarting the services.
+3. **Health Check:** The AI monitors the services. Suppose PostgreSQL succeeds, but MySQL fails to start due to a deprecated configuration parameter.
+4. **Atomic Rollback:** Because both the declarative system configuration (Nix) and the data storage (Btrfs) are tightly integrated, rolling back is atomic. The system instantly reverts the snapshots. The binaries, configurations, and raw database files all revert together to the exact microsecond before the upgrade began. No partial failures, no messy manual state recovery.
 
 ## Who This Is For
 
@@ -61,6 +73,7 @@ This tutorial assumes no prior NixOS experience. Each step is explained from fir
 | [NixOS](https://nixos.org) | Declarative, reproducible operating system |
 | [Btrfs](https://btrfs.readthedocs.io/) | Copy-on-write filesystem with snapshots |
 | [Snapper](http://snapper.io/) | Automated snapshot management |
+| [Impermanence](https://github.com/nix-community/impermanence) | "Erase your darlings" stateless root filesystem |
 | [OpenClaw](https://github.com/openclaw) | AI infrastructure operator |
 | [pam_oath](https://www.nongnu.org/oath-toolkit/) | TOTP-based sudo authentication |
 
@@ -68,7 +81,7 @@ This tutorial assumes no prior NixOS experience. Each step is explained from fir
 
 1. **[Architecture Overview](./architecture)** — System design and component interactions
 2. **[Bootstrap with nixos-anywhere](./bootstrap-nixos-anywhere)** — Install NixOS on any server remotely
-3. **[Btrfs Subvolume Layout](./btrfs-layout)** — Design the filesystem for snapshots and rollback
+3. **[Btrfs & Impermanence Layout](./btrfs-layout)** — Design the filesystem for snapshots, stateless root, and persistent state
 4. **[Btrfs Snapshots & Snapper](./btrfs-snapshots)** — Automate snapshot creation and cleanup
 5. **[Install OpenClaw](./install-openclaw)** — Set up the AI infrastructure operator
 6. **[AI-Managed Infrastructure](./ai-managed-infra)** — Configure AI-assisted operations

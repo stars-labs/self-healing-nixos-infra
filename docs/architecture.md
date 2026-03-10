@@ -32,8 +32,8 @@ flowchart TB
         H[provisioned via nixos-anywhere]
     end
     
-    subgraph Btrfs["Btrfs Filesystem (subvolumes)"]
-        B[@root, @home, @nix, @log, @db, @snapshots]
+    subgraph Btrfs["Btrfs Filesystem subvolumes"]
+        B["root, home, nix, log, db, snapshots"]
     end
     
     subgraph Snap["Snapshot Layer (Snapper)"]
@@ -81,14 +81,14 @@ sequenceDiagram
     participant Health as Health Check
     
     AI->>Snap: Propose change
-    Note over Snap: Before ANY change:<br/>btrfs snapshot @root -> @root-pre
+    Note over Snap: Before ANY change:<br/>btrfs snapshot root -&gt; root-pre
     Snap-->>Nix: Snapshot confirmed
     Nix->>Health: Apply config
     alt Health check passes
         Health-->>AI: Success - keep snapshot
     else Health check fails
         Nix->>Snap: Rollback request
-        Snap->>Snap: btrfs subvolume snapshot<br/>/snapshots/@root-pre /
+        Snap->>Snap: btrfs subvolume snapshot<br/>snapshots/root-pre to /
         Snap-->>AI: Rolled back - human notified
     end
 ```
@@ -170,11 +170,13 @@ flowchart LR
 flowchart TB
     A[OpenClaw<br/>detect] -->|propose change| B[TOTP Sudo Gate<br/>pam_oath validates 6-digit code]
     C[Human<br/>approve] -->|TOTP code| B
-    B -->|authorized| D[Pre-Change Snapshot<br/>btrfs snapshot @root -> @root-pre]
+    B -->|authorized| D[Pre-Change Snapshot<br/>btrfs snapshot root to root-pre]
     D -->|apply| E[nixos-rebuild switch<br/>applies new NixOS configuration]
     E --> F{success?}
     F -->|yes| G[Done<br/>keep snapshot]
     F -->|no| H[Rollback<br/>restore snapshot]
+```
+
 ## OpenClaw: The AI Infrastructure Operator
 
 ### What is OpenClaw?
@@ -334,7 +336,7 @@ sequenceDiagram
             System-->>OpenClaw: Success/fail
             OpenClaw->>OpenClaw: Log to audit
             
-        alt Tier 2 (Supervised)
+        else Tier 2 (Supervised)
             Policy->>OpenClaw: Allowed (supervised)
             OpenClaw->>Human: Notify of pending action
             Note over Human,OpenClaw: 30 minute window
@@ -346,8 +348,8 @@ sequenceDiagram
                 Human->>OpenClaw: Cancel
                 OpenClaw->>OpenClaw: Log cancelled
             end
-            
-        alt Tier 3 (Gated)
+
+        else Tier 3 (Gated)
             Policy->>OpenClaw: Requires TOTP
             OpenClaw->>Human: Request approval
             Human->>TOTP: Enter TOTP code
@@ -627,12 +629,12 @@ A typical configuration change flows through the system like this:
 ```mermaid
 flowchart TB
     subgraph Btrfs["Btrfs pool (/)"]
-        A["@root -> /<br/>system root, snapshotted"]
-        B["@home -> /home<br/>user data, snapshotted"]
-        C["@nix -> /nix<br/>Nix store, NOT snapshotted"]
-        D["@log -> /var/log<br/>logs, persisted across rollbacks"]
-        E["@db -> /var/lib/db<br/>databases, separate snapshot schedule"]
-        F["@snapshots -> /.snapshots<br/>snapshot storage"]
+        A["root → /<br/>system root, snapshotted"]
+        B["home → /home<br/>user data, snapshotted"]
+        C["nix → /nix<br/>Nix store, NOT snapshotted"]
+        D["log → /var/log<br/>logs, persisted across rollbacks"]
+        E["db → /var/lib/db<br/>databases, separate snapshot schedule"]
+        F["snapshots → /.snapshots<br/>snapshot storage"]
     end
 ```
 
@@ -651,8 +653,8 @@ flowchart TB
         C[Threat: AI misreads system state] --> C1[Mitigation: Health checks verify actual state]
         D[Threat: AI in feedback loop<br/>repeating failed action] --> D1[Mitigation: Rate limiting + cooldown periods]
         E[Threat: Attacker gains shell access] --> E1[Mitigation: TOTP required for sudo escalation]
-        F[Threat: Configuration drift] --> F1[Mitigation: Declarative NixOS (no drift)]
-        G[Threat: Data loss from bad migration] --> G1[Mitigation: Btrfs snapshot of @db before change]
+        F[Threat: Configuration drift] --> F1["Mitigation: Declarative NixOS (no drift)"]
+        G[Threat: Data loss from bad migration] --> G1[Mitigation: Btrfs snapshot of db before change]
         H[Threat: Complete disk failure] --> H1[Mitigation: Remote btrfs send/receive backup]
     end
 ```

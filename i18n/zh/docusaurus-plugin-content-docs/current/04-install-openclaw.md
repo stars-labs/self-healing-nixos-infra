@@ -3,42 +3,42 @@ sidebar_position: 6
 title: 安装 OpenClaw
 ---
 
-# 安装 OpenClaw
+# Install OpenClaw
 
-OpenClaw 是一个 AI 驱动的基础设施运维代理。它监控系统健康、提出配置变更建议，并可以执行已批准的操作 — 所有操作都在策略定义的边界内进行。可以将其视为与您现有 NixOS 工具配合工作的 AI SRE 代理。
+OpenClaw is an AI-powered infrastructure operator. It monitors system health, proposes configuration changes, and can execute approved operations — all within a policy-defined boundary. Think of it as an AI SRE agent that works alongside your existing NixOS tooling.
 
-## 架构
+## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph OpenClawAgent["OpenClaw 代理"]
-        A[监控引擎<br/>健康、指标、日志] --> B[策略引擎<br/>允许/拒绝、升级、审计日志]
-        B --> C[操作执行器<br/>nix 配置生成、safe-rebuild、服务管理]
-        C --> D[TOTP 门禁<br/>用于临界操作]
-        A --> E[LLM 后端<br/>API 或本地]
+    subgraph OpenClaw["OpenClaw Agent"]
+        A[Monitor Engine<br/>health, metrics, logs] --> B[Policy Engine<br/>allow/deny, escalation, audit log]
+        B --> C[Action Executor<br/>nix config gen, safe-rebuild, service mgmt]
+        C --> D[TOTP Gate<br/>for critical operations]
+        A --> E[LLM Backend<br/>API or local]
     end
     
-    E -->|推理| B
-    D -->|执行| F[NixOS 系统<br/>已管理]
+    E -->|reasoning| B
+    D -->|execute| F[NixOS System<br/>managed]
 ```
 
-## 组件
+## Components
 
-| 组件 | 角色 |
+| Component | Role |
 |---|---|
-| **监控引擎** | 收集系统指标、解析日志、检测异常 |
-| **策略引擎** | 定义 OpenClaw 可以和不能自主做什么 |
-| **操作执行器** | 生成 Nix 配置、运行 safe-rebuild、管理服务 |
-| **LLM 后端** | 推理引擎 — 可以是远程 API 或本地模型 |
-| **审计日志** | 所有提案和操作的不可变记录 |
+| **Monitor Engine** | Collects system metrics, parses logs, detects anomalies |
+| **Policy Engine** | Defines what OpenClaw can and cannot do autonomously |
+| **Action Executor** | Generates Nix configs, runs safe-rebuild, manages services |
+| **LLM Backend** | Reasoning engine — can be a remote API or local model |
+| **Audit Log** | Immutable record of all proposals and actions |
 
-## 在 NixOS 上安装
+## Installation on NixOS
 
-### 添加 Flake 输入
+### Add the Flake Input
 
 ```nix title="flake.nix"
 {
-  description = "自愈式 NixOS 服务器";
+  description = "Self-healing NixOS server";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
@@ -67,7 +67,7 @@ flowchart TB
 }
 ```
 
-### OpenClaw NixOS 模块
+### OpenClaw NixOS Module
 
 ```nix title="openclaw-config.nix"
 { config, pkgs, ... }:
@@ -75,38 +75,38 @@ flowchart TB
   services.openclaw = {
     enable = true;
 
-    # 作为专用系统用户运行（不是 root）
+    # Run as a dedicated system user (not root)
     user = "openclaw";
     group = "openclaw";
 
     settings = {
-      # LLM 后端配置
+      # LLM backend configuration
       llm = {
-        # 选项 1：远程 API
+        # Option 1: Remote API
         provider = "anthropic";
         model = "claude-sonnet-4-20250514";
-        # API 密钥从文件加载，永远不在 nix 配置中
+        # API key is loaded from a file, never in nix config
         apiKeyFile = "/run/secrets/openclaw-api-key";
 
-        # 选项 2：本地模型（取消注释以使用）
+        # Option 2: Local model (uncomment to use)
         # provider = "ollama";
         # model = "llama3:70b";
         # endpoint = "http://localhost:11434";
       };
 
-      # 系统集成
+      # System integration
       system = {
-        # NixOS 配置路径
+        # Path to the NixOS configuration
         nixosConfigPath = "/etc/nixos";
 
-        # 使用我们的 safe-rebuild 包装器
+        # Use our safe-rebuild wrapper
         rebuildCommand = "safe-rebuild";
 
-        # Snapper 集成
+        # Snapper integration
         snapperConfigs = [ "root" "home" "db" ];
       };
 
-      # 监控目标
+      # Monitoring targets
       monitoring = {
         enable = true;
         interval = "60s";
@@ -121,7 +121,7 @@ flowchart TB
         };
       };
 
-      # 日志和审计
+      # Logging and audit
       audit = {
         enable = true;
         logPath = "/var/log/openclaw/audit.jsonl";
@@ -130,28 +130,28 @@ flowchart TB
     };
   };
 
-  # 创建 openclaw 系统用户
+  # Create the openclaw system user
   users.users.openclaw = {
     isSystemUser = true;
     group = "openclaw";
     home = "/var/lib/openclaw";
-    description = "OpenClaw AI 基础设施运维代理";
+    description = "OpenClaw AI infrastructure operator";
   };
 
   users.groups.openclaw = {};
 
-  # OpenClaw 需要有限的 sudo 访问（临界操作需要 TOTP）
+  # OpenClaw needs limited sudo access (TOTP-gated for critical ops)
   security.sudo.extraRules = [
     {
       users = [ "openclaw" ];
       commands = [
-        # 只读操作 — 无需 TOTP
+        # Read-only operations — no TOTP needed
         { command = "/run/current-system/sw/bin/systemctl status *"; options = [ "NOPASSWD" ]; }
         { command = "/run/current-system/sw/bin/journalctl *"; options = [ "NOPASSWD" ]; }
         { command = "/run/current-system/sw/bin/btrfs subvolume list *"; options = [ "NOPASSWD" ]; }
         { command = "/run/current-system/sw/bin/snapper list *"; options = [ "NOPASSWD" ]; }
 
-        # 临界操作 — 需要 TOTP（在第 6 章配置）
+        # Critical operations — require TOTP (configured in chapter 06)
         { command = "/run/current-system/sw/bin/safe-rebuild *"; options = [ "PASSWD" ]; }
         { command = "/run/current-system/sw/bin/nixos-rebuild *"; options = [ "PASSWD" ]; }
         { command = "/run/current-system/sw/bin/systemctl restart *"; options = [ "PASSWD" ]; }
@@ -159,33 +159,33 @@ flowchart TB
     }
   ];
 
-  # 确保日志目录存在
+  # Ensure log directory exists
   systemd.tmpfiles.rules = [
     "d /var/log/openclaw 0750 openclaw openclaw -"
   ];
 }
 ```
 
-### API 密钥管理
+### API Key Management
 
-永远不要将 API 密钥放在 Nix 配置中。使用 secrets 管理器：
+Never put API keys in Nix configuration. Use a secrets manager:
 
 ```bash
-# 创建 secrets 目录（受限权限）
+# Create a secrets directory (restricted permissions)
 sudo mkdir -p /run/secrets
 sudo chmod 700 /run/secrets
 
-# 写入 API 密钥
+# Write the API key
 echo "sk-ant-..." | sudo tee /run/secrets/openclaw-api-key > /dev/null
 sudo chmod 600 /run/secrets/openclaw-api-key
 sudo chown openclaw:openclaw /run/secrets/openclaw-api-key
 ```
 
-:::tip 生产 Secrets 管理
-对于生产环境，使用 [agenix](https://github.com/ryantm/agenix) 或 [sops-nix](https://github.com/Mic92/sops-nix) 通过加密声明式管理 secrets：
+:::tip Production Secrets Management
+For production, use [agenix](https://github.com/ryantm/agenix) or [sops-nix](https://github.com/Mic92/sops-nix) to manage secrets declaratively with encryption:
 
 ```nix
-# 使用 agenix：
+# With agenix:
 age.secrets.openclaw-api-key = {
   file = ../secrets/openclaw-api-key.age;
   owner = "openclaw";
@@ -194,25 +194,25 @@ age.secrets.openclaw-api-key = {
 ```
 :::
 
-## 验证
+## Verification
 
-使用 OpenClaw 配置重建后：
+After rebuilding with the OpenClaw configuration:
 
 ```bash
-# 检查服务状态
+# Check service status
 sudo systemctl status openclaw
 
-# 查看最近日志
+# View recent logs
 sudo journalctl -u openclaw -f
 
-# 检查 OpenClaw 是否可以与其 LLM 后端通信
+# Check OpenClaw can communicate with its LLM backend
 sudo -u openclaw openclaw health-check
 
-# 查看审计日志
+# View the audit log
 sudo cat /var/log/openclaw/audit.jsonl | jq .
 ```
 
-预期的健康输出：
+Expected healthy output:
 
 ```
 ● openclaw.service - OpenClaw AI Infrastructure Operator
@@ -230,18 +230,18 @@ Jan 15 10:00:01 nixos-server openclaw[1234]: LLM backend connected (anthropic/cl
 Jan 15 10:00:01 nixos-server openclaw[1234]: Audit logging to /var/log/openclaw/audit.jsonl
 ```
 
-## 安全注意事项
+## Security Considerations
 
-1. **专用用户** — OpenClaw 以 `openclaw` 而非 root 运行。它只能通过 sudo 提升权限。
-2. **TOTP 门禁 sudo** — 临界操作（重建、重启）需要 TOTP 身份验证（在[第 6 章](./totp-sudo-protection)中配置）。
-3. **只读默认** — 监控命令无需密码运行。只有写操作需要身份验证。
-4. **审计追踪** — 每个操作都记录到仅追加的 JSONL 文件中，包含时间戳、操作类型和结果。
-5. **策略边界** — 策略引擎阻止 OpenClaw 在规则之外行动，即使 LLM 建议它这样做。
+1. **Dedicated user** — OpenClaw runs as `openclaw`, not root. It can only escalate via sudo.
+2. **TOTP-gated sudo** — Critical commands (rebuild, restart) require TOTP authentication (configured in [Chapter 6](./totp-sudo-protection)).
+3. **Read-only defaults** — Monitoring commands run without password. Only write operations require authentication.
+4. **Audit trail** — Every action is logged to an append-only JSONL file with timestamps, action type, and outcome.
+5. **Policy boundaries** — The policy engine prevents OpenClaw from acting outside defined rules, even if the LLM suggests it.
 
-:::danger 永远不要给 OpenClaw root 访问权限
-OpenClaw 不应以 root 运行或拥有不受限制的 sudo。整个安全模型取决于 TOTP 门禁立于 OpenClaw 和破坏性操作之间。如果 OpenClaw 有 root，门禁就毫无意义。
+:::danger Never Give OpenClaw Root Access
+OpenClaw should never run as root or have unrestricted sudo. The entire safety model depends on the TOTP gate standing between OpenClaw and destructive operations. If OpenClaw has root, the gate is meaningless.
 :::
 
-## 下一步
+## What's Next
 
-OpenClaw 已安装并运行。接下来，我们将配置 [AI 管理的基础设施工作流](./ai-managed-infra) — 定义 OpenClaw 可以自主做什么 vs 什么需要人类批准。
+OpenClaw is installed and running. Next, we'll configure the [AI-managed infrastructure workflow](./ai-managed-infra) — defining what OpenClaw can do autonomously vs. what requires human approval.
