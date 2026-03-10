@@ -175,6 +175,206 @@ flowchart TB
     E --> F{success?}
     F -->|yes| G[Done<br/>keep snapshot]
     F -->|no| H[Rollback<br/>restore snapshot]
+## OpenClaw: The AI Infrastructure Operator
+
+### What is OpenClaw?
+
+OpenClaw is an AI-powered agent that acts as your **digital on-call SRE**. It doesn't replace human operators — it augments them by handling routine monitoring, analysis, and can execute low-risk operations autonomously while escalating high-risk changes to humans.
+
+```mermaid
+flowchart TB
+    subgraph OpenClaw["OpenClaw Architecture"]
+        M[Monitor<br/>metrics, logs, health] --> D[Detect<br/>anomaly detection]
+        D --> A[Analyze<br/>LLM reasoning]
+        A --> P[Propose<br/>change proposal]
+        P --> E[Execute<br/>if approved]
+        
+        subgraph Policy["Policy Engine"]
+            P --> W[Whitelist<br/>allowed actions]
+            P --> R[Rate Limit<br/>cooldown]
+            P --> T[Tier Classification<br/>1-3]
+        end
+        
+        subgraph Safety["Safety Layers"]
+            W -.->|blocks| E
+            R -.->|throttles| E
+            T -.->|requires TOTP| E
+        end
+    end
+```
+
+### Core Responsibilities
+
+| Responsibility | Description |
+|---|---|
+| **Monitoring** | Continuously collect system metrics (CPU, memory, disk, services) |
+| **Detection** | Identify anomalies, degraded services, security issues |
+| **Analysis** | Use LLM to analyze root cause and propose solutions |
+| **Execution** | Execute approved changes with full audit trail |
+
+### Why OpenClaw? (Not Just Another Automation Tool)
+
+Unlike traditional automation (Ansible, Terraform), OpenClaw:
+
+| Traditional Automation | OpenClaw (AI Operator) |
+|---|---|
+| Declarative desired state | Learns and adapts to system behavior |
+| Fixed playbooks | Generates novel solutions for novel problems |
+| No context understanding | Uses LLM to understand context |
+| Human writes all logic | AI suggests, human approves |
+| Static | Improves from feedback |
+
+### The Three-Tier Operation Model
+
+OpenClaw classifies every action into one of three tiers:
+
+```mermaid
+flowchart LR
+    subgraph Tier1["Tier 1: Autonomous"]
+        T1[Log rotation<br/>Service restart<br/>Temp cleanup]
+    end
+    
+    subgraph Tier2["Tier 2: Supervised"]
+        T2[Security updates<br/>Swap config<br/>Rate limits]
+    end
+    
+    subgraph Tier3["Tier 3: Gated"]
+        T3[nixos-rebuild<br/>User management<br/>Network config]
+    end
+    
+    T1 -->|auto| Success1[✅ Execute]
+    T2 -->|notify + wait| Success2[✅ Auto-apply or cancel]
+    T3 -->|TOTP required| Human[👤 Human approval]
+```
+
+**Tier 1 — Autonomous (No Approval)**
+- Low-risk, reversible operations
+- Auto-executed immediately
+- Examples: log rotation, service restart after failure, temp file cleanup
+
+**Tier 2 — Supervised (Notification + Auto-Apply)**
+- Medium-risk operations
+- Notifies human, auto-applies after window (default: 30 min)
+- Examples: security patches, swap configuration
+
+**Tier 3 — Gated (TOTP Required)**
+- High-risk operations
+- Requires explicit human approval via TOTP
+- Examples: `nixos-rebuild switch`, user management, firewall changes
+
+### OpenClaw Policy Engine
+
+The policy engine is the **safety boundary** that prevents OpenClaw from overreaching. It's defined in Nix:
+
+```nix
+services.openclaw.settings.policy = {
+  # Tier 1: What AI can do autonomously
+  autonomous = {
+    allowedActions = [
+      "restart-failed-service"
+      "rotate-logs"
+      "clean-temp-files"
+    ];
+    constraints = {
+      maxActionsPerHour = 5;
+      maxRestartsPerServicePerHour = 3;
+    };
+  };
+  
+  # Tier 2: What AI proposes but waits for
+  supervised = {
+    allowedActions = [
+      "security-package-update"
+      "add-swap"
+    ];
+    defaultWindow = "30m";
+  };
+  
+  # Tier 3: What AI cannot do without human
+  gated = {
+    actions = [
+      "nixos-rebuild-switch"
+      "user-management"
+    ];
+    requireTOTP = true;
+  };
+  
+  # Global safety limits
+  safety = {
+    emergencyStopFile = "/var/lib/openclaw/STOP";
+    maxChangesPerDay = 20;
+    requirePreSnapshot = true;
+    autoRollbackOnFailure = true;
+  };
+};
+```
+
+### OpenClaw in the Architecture
+
+```mermaid
+sequenceDiagram
+    participant System as System (NixOS)
+    participant OpenClaw as OpenClaw (AI)
+    participant Policy as Policy Engine
+    participant Human as Human Operator
+    participant TOTP as TOTP Gate
+    participant Snap as Btrfs Snapshots
+    
+    System->>OpenClaw: Send metrics
+    OpenClaw->>OpenClaw: Analyze for issues
+    
+    alt Issue detected
+        OpenClaw->>Policy: Check if action allowed
+        
+        alt Tier 1 (Autonomous)
+            Policy->>OpenClaw: Allowed
+            OpenClaw->>Snap: Pre-snapshot (automatic)
+            Snap-->>OpenClaw: Snapshot done
+            OpenClaw->>System: Execute action
+            System-->>OpenClaw: Success/fail
+            OpenClaw->>OpenClaw: Log to audit
+            
+        alt Tier 2 (Supervised)
+            Policy->>OpenClaw: Allowed (supervised)
+            OpenClaw->>Human: Notify of pending action
+            Note over Human,OpenClaw: 30 minute window
+            alt Human approves
+                Human->>OpenClaw: Approve
+                OpenClaw->>Snap: Pre-snapshot
+                OpenClaw->>System: Execute
+            else Human cancels
+                Human->>OpenClaw: Cancel
+                OpenClaw->>OpenClaw: Log cancelled
+            end
+            
+        alt Tier 3 (Gated)
+            Policy->>OpenClaw: Requires TOTP
+            OpenClaw->>Human: Request approval
+            Human->>TOTP: Enter TOTP code
+            TOTP->>Policy: Validated
+            Policy->>OpenClaw: Approved
+            OpenClaw->>Snap: Pre-snapshot
+            OpenClaw->>System: Execute via sudo
+        end
+    end
+```
+
+### AI Hallucination Protection
+
+OpenClaw's design explicitly addresses AI hallucinations:
+
+| Hallucination Type | Protection |
+|---|---|
+| **Hallucinated problem** | Only acts on verified metrics, not LLM interpretation |
+| **Wrong fix proposed** | Policy whitelist prevents unauthorized actions |
+| **Wrong target** | Human reviews diff before TOTP approval |
+| **Feedback loop** | Rate limiting + cooldown periods |
+| **Confidence too high** | Always logs uncertainty, requires human for Tier 3 |
+
+:::danger OpenClaw Is Not Root
+OpenClaw runs as a dedicated user (`openclaw`), not root. Even if the LLM suggests a root-level command, OpenClaw cannot execute it without going through the TOTP-gated sudo path. **Never give OpenClaw root access** — it would bypass every safety layer.
+:::
+
 ## Data Flow: Configuration Change
 
 A typical configuration change flows through the system like this:

@@ -177,6 +177,206 @@ flowchart TB
     F -->|否| H[回滚<br/>恢复快照]
 ```
 
+## OpenClaw：AI 基础设施运维代理
+
+### 什么是 OpenClaw？
+
+OpenClaw 是一个 AI 驱动的代理，作为您的**数字值班 SRE**。它不取代人工运维人员 — 而是通过处理常规监控、分析，并能够自主执行低风险操作，同时将高风险变更上报给人工来增强人工运维人员的能力。
+
+```mermaid
+flowchart TB
+    subgraph OpenClaw["OpenClaw 架构"]
+        M[监控<br/>指标、日志、健康] --> D[检测<br/>异常检测]
+        D --> A[分析<br/>LLM 推理]
+        A --> P[提议<br/>变更提案]
+        P --> E[执行<br/>如果已批准]
+        
+        subgraph Policy["策略引擎"]
+            P --> W[白名单<br/>允许的操作]
+            P --> R[速率限制<br/>冷却期]
+            P --> T[分层分类<br/>1-3 层]
+        end
+        
+        subgraph Safety["安全层"]
+            W -.->|阻止| E
+            R -.->|节流| E
+            T -.->|需要 TOTP| E
+        end
+    end
+```
+
+### 核心职责
+
+| 职责 | 描述 |
+|---|---|
+| **监控** | 持续收集系统指标（CPU、内存、磁盘、服务） |
+| **检测** | 识别异常、服务降级、安全问题 |
+| **分析** | 使用 LLM 分析根本原因并提出解决方案 |
+| **执行** | 执行已批准的变更并提供完整审计跟踪 |
+
+### 为什么是 OpenClaw？（不仅仅是另一种自动化工具）
+
+与传统自动化（Ansible、Terraform）不同，OpenClaw：
+
+| 传统自动化 | OpenClaw（AI 运维代理）|
+|---|---|
+| 声明式期望状态 | 学习并适应系统行为 |
+| 固定 playbook | 为新问题生成新解决方案 |
+| 无上下文理解 | 使用 LLM 理解上下文 |
+| 人工编写所有逻辑 | AI 提议，人工审批 |
+| 静态 | 从反馈中改进 |
+
+### 三层运维模型
+
+OpenClaw 将每个操作分类为三个层级之一：
+
+```mermaid
+flowchart LR
+    subgraph Tier1["第 1 层：自主"]
+        T1[日志轮转<br/>服务重启<br/>临时清理]
+    end
+    
+    subgraph Tier2["第 2 层：监督"]
+        T2[安全更新<br/>Swap 配置<br/>速率限制]
+    end
+    
+    subgraph Tier3["第 3 层：门禁"]
+        T3[nixos-rebuild<br/>用户管理<br/>网络配置]
+    end
+    
+    T1 -->|自动| Success1[✅ 执行]
+    T2 -->|通知 + 等待| Success2[✅ 自动应用或取消]
+    T3 -->|需要 TOTP| Human[👤 人工审批]
+```
+
+**第 1 层 — 自主（无需批准）**
+- 低风险、可逆操作
+- 立即自动执行
+- 示例：日志轮转、服务故障后重启、临时文件清理
+
+**第 2 层 — 监督（通知 + 自动应用）**
+- 中等风险操作
+- 通知人工，窗口期后自动应用（默认：30 分钟）
+- 示例：安全补丁、Swap 配置
+
+**第 3 层 — 门禁（需要 TOTP）**
+- 高风险操作
+- 需要人工通过 TOTP 明确批准
+- 示例：`nixos-rebuild switch`、用户管理、防火墙变更
+
+### OpenClaw 策略引擎
+
+策略引擎是防止 OpenClaw 越界的**安全边界**。它在 Nix 中定义：
+
+```nix
+services.openclaw.settings.policy = {
+  # 第 1 层：AI 可以自主执行的操作
+  autonomous = {
+    allowedActions = [
+      "restart-failed-service"
+      "rotate-logs"
+      "clean-temp-files"
+    ];
+    constraints = {
+      maxActionsPerHour = 5;
+      maxRestartsPerServicePerHour = 3;
+    };
+  };
+  
+  # 第 2 层：AI 提议但等待的操作
+  supervised = {
+    allowedActions = [
+      "security-package-update"
+      "add-swap"
+    ];
+    defaultWindow = "30m";
+  };
+  
+  # 第 3 层：AI 无法在没有人工的情况下执行的操作
+  gated = {
+    actions = [
+      "nixos-rebuild-switch"
+      "user-management"
+    ];
+    requireTOTP = true;
+  };
+  
+  # 全局安全限制
+  safety = {
+    emergencyStopFile = "/var/lib/openclaw/STOP";
+    maxChangesPerDay = 20;
+    requirePreSnapshot = true;
+    autoRollbackOnFailure = true;
+  };
+};
+```
+
+### OpenClaw 在架构中的位置
+
+```mermaid
+sequenceDiagram
+    participant System as 系统 (NixOS)
+    participant OpenClaw as OpenClaw (AI)
+    participant Policy as 策略引擎
+    participant Human as 人工运维
+    participant TOTP as TOTP 门禁
+    participant Snap as Btrfs 快照
+    
+    System->>OpenClaw: 发送指标
+    OpenClaw->>OpenClaw: 分析问题
+    
+    alt 检测到问题
+        OpenClaw->>Policy: 检查操作是否允许
+        
+        alt 第 1 层（自主）
+            Policy->>OpenClaw: 允许
+            OpenClaw->>Snap: 预快照（自动）
+            Snap-->>OpenClaw: 快照完成
+            OpenClaw->>System: 执行操作
+            System-->>OpenClaw: 成功/失败
+            OpenClaw->>OpenClaw: 记录到审计
+            
+        alt 第 2 层（监督）
+            Policy->>OpenClaw: 允许（监督）
+            OpenClaw->>Human: 通知待处理操作
+            Note over Human,OpenClaw: 30 分钟窗口期
+            alt 人工批准
+                Human->>OpenClaw: 批准
+                OpenClaw->>Snap: 预快照
+                OpenClaw->>System: 执行
+            else 人工取消
+                Human->>OpenClaw: 取消
+                OpenClaw->>OpenClaw: 记录已取消
+            end
+            
+        alt 第 3 层（门禁）
+            Policy->>OpenClaw: 需要 TOTP
+            OpenClaw->>Human: 请求审批
+            Human->>TOTP: 输入 TOTP 码
+            TOTP->>Policy: 已验证
+            Policy->>OpenClaw: 已批准
+            OpenClaw->>Snap: 预快照
+            OpenClaw->>System: 通过 sudo 执行
+        end
+    end
+```
+
+### AI 幻觉保护
+
+OpenClaw 的设计明确解决 AI 幻觉问题：
+
+| 幻觉类型 | 保护措施 |
+|---|---|
+| **幻觉问题** | 只根据验证的指标行动，而非 LLM 解释 |
+| **提出错误修复** | 策略白名单阻止未授权操作 |
+| **目标错误** | 人工在 TOTP 审批前审查差异 |
+| **反馈循环** | 速率限制 + 冷却期 |
+| **过度自信** | 始终记录不确定性，第 3 层需要人工 |
+
+:::danger OpenClaw 不是 root
+OpenClaw 以专用用户（`openclaw`）运行，而非 root。即使 LLM 建议 root 级别命令，OpenClaw 也无法在不经过 TOTP 门禁 sudo 路径的情况下执行。**永远不要给 OpenClaw root 访问权限** — 它会绕过所有安全层。
+:::
+
 ## 数据流：配置变更
 
 典型的配置变更按如下流程流经系统：
