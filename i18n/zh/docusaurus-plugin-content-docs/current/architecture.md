@@ -377,6 +377,217 @@ OpenClaw 的设计明确解决 AI 幻觉问题：
 OpenClaw 以专用用户（`openclaw`）运行，而非 root。即使 LLM 建议 root 级别命令，OpenClaw 也无法在不经过 TOTP 门禁 sudo 路径的情况下执行。**永远不要给 OpenClaw root 访问权限** — 它会绕过所有安全层。
 :::
 
+### OpenClaw 的回滚技能
+
+OpenClaw 不靠猜测恢复 — 它有**结构化的回滚技能**，定义为 Nix 模块。这些技能是原子的、经过测试的、保证能工作的。
+
+```mermaid
+flowchart TB
+    subgraph Rollback_Skills["OpenClaw 回滚技能"]
+        R1[system-rollback<br/>NixOS 代数恢复] --> R5[原子子卷交换]
+        R2[service-rollback<br/>systemd 服务重置] --> R5
+        R3[config-rollback<br/>nix diff + 回滚] --> R5
+        R4[db-rollback<br/>PostgreSQL 快照恢复] --> R5
+    end
+    
+    subgraph Triggers["触发条件"]
+        T1[健康检查失败]
+        T2[AI 决策]
+        T3[人工请求]
+    end
+    
+    T1 --> R1
+    T2 --> R2
+    T3 --> R3
+```
+
+#### 技能 1：系统回滚（NixOS 代数）
+
+恢复到之前的 NixOS 代数：
+
+```nix
+# 实现为 Nix 模块
+systemRollback = {
+  description = "回滚到之前的 NixOS 代数";
+  
+  # 只执行预先验证的命令
+  command = ''
+    # 获取之前的代数
+    PREV_GEN=$(nix-env --list-generations | grep -B1 current | head -1 | awk '{print $1}')
+    
+    # 激活之前的代数
+    sudo /nix/var/nix/profiles/system/bin/switch-to-configuration switch --specialisations "$PREV_GEN"
+  '';
+  
+  # 前置条件
+  requiresSnapshot = true;
+  verifyBefore = ["health-check", "ssh-accessible"];
+  verifyAfter = ["health-check", "disk-space"];
+};
+```
+
+**使用场景：**
+- `nixos-rebuild` 应用后健康检查失败
+- 重启后系统变得不可达
+- OpenClaw 检测到启动失败
+
+#### 技能 2：服务回滚（systemd）
+
+将服务重启到已知良好状态：
+
+```nix
+serviceRollback = {
+  description = "回滚 systemd 服务";
+  
+  command = ''
+    SERVICE=$1  # 由 OpenClaw 传递
+    
+    # 停止服务
+    sudo systemctl stop "$SERVICE"
+    
+    # 从上次已知良好状态恢复配置
+    sudo cp /var/lib/openclaw/service-backups/"$SERVICE"/* /etc/systemd/system/
+    
+    # 重载并重启
+    sudo systemctl daemon-reload
+    sudo systemctl restart "$SERVICE"
+    
+    # 验证
+    sudo systemctl status "$SERVICE"
+  '';
+  
+  # 只对允许的服务（策略白名单）
+  allowedServices = ["nginx", "postgresql", "docker"];
+  maxRollbacksPerHour = 3;
+};
+```
+
+**使用场景：**
+- 服务进入崩溃循环
+- 服务响应错误
+- 检测到配置漂移
+
+#### 技能 3：配置回滚（Nix Diff 回滚）
+
+回滚特定的 Nix 配置变更：
+
+```nix
+configRollback = {
+  description = "回滚特定的 Nix 配置变更";
+  
+  command = ''
+    # 获取当前和之前的差异
+    nix diff /etc/nixos/configuration.nix > /tmp/config-diff
+    
+    # 显示变更内容
+    cat /tmp/config-diff
+    
+    # 回滚到 git 中的之前提交
+    cd /etc/nixos
+    sudo git revert HEAD --no-commit
+    
+    # 重建
+    sudo nixos-rebuild switch
+  '';
+  
+  requiresSnapshot = true;
+  alwaysGated = true;  # 始终需要 TOTP
+};
+```
+
+**使用场景：**
+- 部分配置变更导致问题
+- 想保留大部分变更，只回滚一个
+- 人工识别出特定有问题的变更
+
+#### 技能 4：数据库回滚（Btrfs 快照）
+
+从 Btrfs 快照恢复数据库子卷：
+
+```nix
+dbRollback = {
+  description = "从 Btrfs 快照恢复数据库";
+  
+  command = ''
+    DB_PATH=$1  # 例如 /var/lib/postgresql
+    SNAPSHOT=$2  # 例如 pre-change-20240115
+    
+    # 停止数据库
+    sudo systemctl stop postgresql
+    
+    # 创建当前状态备份（以防回滚失败）
+    sudo btrfs subvolume snapshot "$DB_PATH" "$DB_PATH-broken-$(date +%s)"
+    
+    # 从快照恢复
+    sudo btrfs subvolume snapshot "$SNAPSHOT" "$DB_PATH"
+    
+    # 修复权限
+    sudo chown -R postgres:postgres "$DB_PATH"
+    
+    # 启动数据库
+    sudo systemctl start postgresql
+    
+    # 验证
+    sudo -u postgres pg_isready
+  '';
+  
+  requiresSnapshot = true;
+  requiresTOTP = true;
+  createsSnapshot = true;  # 回滚前创建备份
+};
+```
+
+**使用场景：**
+- 模式迁移后数据库损坏
+- 数据完整性检查失败
+- 意外删除数据
+
+#### 回滚技能配置
+
+所有回滚技能都在策略中配置：
+
+```nix
+services.openclaw.settings.policy.rollback = {
+  # 启用回滚技能
+  enableSystemRollback = true;
+  enableServiceRollback = true;
+  enableConfigRollback = true;
+  enableDbRollback = true;
+  
+  # 限制条件
+  maxRollbacksPerHour = 5;
+  maxRollbacksPerDay = 20;
+  requireSnapshotBeforeRollback = true;
+  
+  # 自动回滚触发（AI 可以在无需人工批准的情况下触发）
+  autoRollbackOnHealthCheckFail = true;
+  autoRollbackOnServiceCrash = false;  # 始终需要批准
+  
+  # 回滚之间的冷却时间
+  rollbackCooldownMinutes = 5;
+  
+  # 回滚链限制（防止回滚循环）
+  maxConsecutiveRollbacks = 2;
+  
+  # 回滚后始终通知人工
+  notifyAfterRollback = true;
+};
+```
+
+#### 为什么回滚作为技能很重要
+
+| 临时回滚的问题 | 技能如何解决 |
+|---|---|
+| AI 不知道正确的命令 | 预定义、经过测试的命令 |
+| 回滚导致更多问题 | 回滚前创建快照 |
+| 无验证 | 前后健康检查 |
+| 回滚循环 | 冷却时间 + 链限制 |
+| 未诊断根本原因 | 记录完整回滚上下文 |
+
+:::info 回滚不是失败
+回滚**不是**失败 — 它是安全机制正常工作的标志。如果 OpenClaw 触发回滚，意味着安全架构正在正确运作。查看审计日志以了解出了什么问题，并相应地调整策略或健康检查。
+:::
+
 ## 数据流：配置变更
 
 典型的配置变更按如下流程流经系统：

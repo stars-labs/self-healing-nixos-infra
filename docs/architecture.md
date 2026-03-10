@@ -375,6 +375,217 @@ OpenClaw's design explicitly addresses AI hallucinations:
 OpenClaw runs as a dedicated user (`openclaw`), not root. Even if the LLM suggests a root-level command, OpenClaw cannot execute it without going through the TOTP-gated sudo path. **Never give OpenClaw root access** — it would bypass every safety layer.
 :::
 
+### Rollback Skills for OpenClaw
+
+OpenClaw doesn't guess how to recover — it has **structured rollback skills** defined as Nix modules. These skills are atomic, tested, and guaranteed to work.
+
+```mermaid
+flowchart TB
+    subgraph Rollback_Skills["OpenClaw Rollback Skills"]
+        R1[system-rollback<br/>NixOS generation restore] --> R5[Atomic subvolume swap]
+        R2[service-rollback<br/>systemd service reset] --> R5
+        R3[config-rollback<br/>nix diff + revert] --> R5
+        R4[db-rollback<br/>PostgreSQL snapshot restore] --> R5
+    end
+    
+    subgraph Triggers["Triggered By"]
+        T1[Health check failure]
+        T2[AI decision]
+        T3[Human request]
+    end
+    
+    T1 --> R1
+    T2 --> R2
+    T3 --> R3
+```
+
+#### Skill 1: System Rollback (NixOS Generation)
+
+Restores system to a previous NixOS generation:
+
+```nix
+# Implemented as a Nix module
+systemRollback = {
+  description = "Rollback to previous NixOS generation";
+  
+  # Only executes pre-verified commands
+  command = ''
+    # Get previous generation
+    PREV_GEN=$(nix-env --list-generations | grep -B1 current | head -1 | awk '{print $1}')
+    
+    # Activate previous generation
+    sudo /nix/var/nix/profiles/system/bin/switch-to-configuration switch --specialisations "$PREV_GEN"
+  '';
+  
+  # Prerequisites
+  requiresSnapshot = true;
+  verifyBefore = ["health-check", "ssh-accessible"];
+  verifyAfter = ["health-check", "disk-space"];
+};
+```
+
+**When used:**
+- `nixos-rebuild` fails health check after apply
+- System becomes unreachable after reboot
+- OpenClaw detects boot failure
+
+#### Skill 2: Service Rollback (systemd)
+
+Restarts a service to known-good state:
+
+```nix
+serviceRollback = {
+  description = "Rollback a systemd service";
+  
+  command = ''
+    SERVICE=$1  # Passed by OpenClaw
+    
+    # Stop the service
+    sudo systemctl stop "$SERVICE"
+    
+    # Restore config from last known good
+    sudo cp /var/lib/openclaw/service-backups/"$SERVICE"/* /etc/systemd/system/
+    
+    # Reload and restart
+    sudo systemctl daemon-reload
+    sudo systemctl restart "$SERVICE"
+    
+    # Verify
+    sudo systemctl status "$SERVICE"
+  '';
+  
+  # Only for allowed services (policy whitelist)
+  allowedServices = ["nginx", "postgresql", "docker"];
+  maxRollbacksPerHour = 3;
+};
+```
+
+**When used:**
+- Service in crash loop
+- Service responding with errors
+- Configuration drift detected
+
+#### Skill 3: Config Rollback (Nix Diff Revert)
+
+Reverts specific Nix configuration changes:
+
+```nix
+configRollback = {
+  description = "Revert specific Nix config changes";
+  
+  command = ''
+    # Get the diff between current and previous
+    nix diff /etc/nixos/configuration.nix > /tmp/config-diff
+    
+    # Show what changed
+    cat /tmp/config-diff
+    
+    # Revert to previous commit in git
+    cd /etc/nixos
+    sudo git revert HEAD --no-commit
+    
+    # Rebuild
+    sudo nixos-rebuild switch
+  '';
+  
+  requiresSnapshot = true;
+  alwaysGated = true;  # Always requires TOTP
+};
+```
+
+**When used:**
+- Partial configuration change caused issues
+- Want to keep most changes, revert only one
+- Human identifies specific problematic change
+
+#### Skill 4: Database Rollback (Btrfs Snapshot)
+
+Restores database subvolume from Btrfs snapshot:
+
+```nix
+dbRollback = {
+  description = "Restore database from Btrfs snapshot";
+  
+  command = ''
+    DB_PATH=$1  # e.g., /var/lib/postgresql
+    SNAPSHOT=$2  # e.g., pre-change-20240115
+    
+    # Stop database
+    sudo systemctl stop postgresql
+    
+    # Create backup of current state (in case rollback fails)
+    sudo btrfs subvolume snapshot "$DB_PATH" "$DB_PATH-broken-$(date +%s)"
+    
+    # Restore from snapshot
+    sudo btrfs subvolume snapshot "$SNAPSHOT" "$DB_PATH"
+    
+    # Fix permissions
+    sudo chown -R postgres:postgres "$DB_PATH"
+    
+    # Start database
+    sudo systemctl start postgresql
+    
+    # Verify
+    sudo -u postgres pg_isready
+  '';
+  
+  requiresSnapshot = true;
+  requiresTOTP = true;
+  createsSnapshot = true;  # Creates backup before rollback
+};
+```
+
+**When used:**
+- Database corruption after schema migration
+- Data integrity check failed
+- Accidental data deletion
+
+#### Rollback Skill Configuration
+
+All rollback skills are configured in the policy:
+
+```nix
+services.openclaw.settings.policy.rollback = {
+  # Enable rollback skills
+  enableSystemRollback = true;
+  enableServiceRollback = true;
+  enableConfigRollback = true;
+  enableDbRollback = true;
+  
+  # Constraints
+  maxRollbacksPerHour = 5;
+  maxRollbacksPerDay = 20;
+  requireSnapshotBeforeRollback = true;
+  
+  # Auto-rollback triggers (AI can trigger without human approval)
+  autoRollbackOnHealthCheckFail = true;
+  autoRollbackOnServiceCrash = false;  # Always requires approval
+  
+  # Cooldown between rollbacks
+  rollbackCooldownMinutes = 5;
+  
+  # Rollback chain limit (prevent rollback loops)
+  maxConsecutiveRollbacks = 2;
+  
+  # Always notify human after rollback
+  notifyAfterRollback = true;
+};
+```
+
+#### Why Rollback as Skills Matters
+
+| Problem with Ad-Hoc Rollback | How Skills Solve It |
+|---|---|
+| AI doesn't know correct commands | Pre-defined, tested commands |
+| Rollback breaks more things | Creates snapshot before rollback |
+| No verification | Health checks before/after |
+| Rollback loops | Cooldown + chain limit |
+| Root cause not diagnosed | Logs full rollback context |
+
+:::info Rollback Is Not Failure
+A rollback is **not** a failure — it's a safety mechanism working as intended. If OpenClaw triggers a rollback, it means the safety architecture is functioning correctly. Review the audit log to understand what went wrong and adjust the policy or health checks accordingly.
+:::
+
 ## Data Flow: Configuration Change
 
 A typical configuration change flows through the system like this:
