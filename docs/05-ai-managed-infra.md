@@ -336,4 +336,4 @@ openclaw_rollbacks_total 2
 
 ## What's Next
 
-The AI operator is configured with a clear tiered policy. Next, we'll set up the [TOTP sudo protection](./totp-sudo-protection) that gates Tier 3 operations — the critical security layer between AI proposals and system changes.
+The AI operator is configured with a clear tiered policy. Next, we'll add [context management](./context-management) — giving OpenClaw memory, event correlation, and the ability to learn from past operations for consistent and coherent AI-driven operations.

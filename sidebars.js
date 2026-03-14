@@ -20,6 +20,7 @@ const sidebars = {
       items: [
         'install-openclaw',
         'ai-managed-infra',
+        'context-management',
       ],
     },
     {

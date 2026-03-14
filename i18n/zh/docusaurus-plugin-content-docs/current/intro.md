@@ -85,7 +85,8 @@ flowchart TB
 4. **[Btrfs 快照与 Snapper](./btrfs-snapshots)** — 自动创建与清理快照
 5. **[安装 OpenClaw](./install-openclaw)** — 设置 AI 基础设施操作代理
 6. **[AI 管理的基础设施](./ai-managed-infra)** — 配置 AI 辅助操作
-7. **[TOTP Sudo 防护](./totp-sudo-protection)** — 将关键命令隔离在 TOTP 之后
+7. **[OpenClaw 上下文管理](./context-management)** — 事件关联、会话连续性与知识学习
+8. **[TOTP Sudo 防护](./totp-sudo-protection)** — 将关键命令隔离在 TOTP 之后
 8. **[数据库快照策略](./database-snapshot-strategy)** — 结合 Btrfs 的一致性数据库备份
 9. **[灾难恢复](./disaster-recovery)** — 完整的数据和系统恢复流程
 10. **[AI 安全与回滚](./ai-safety-and-rollback)** — 护栏规则与回滚工作流

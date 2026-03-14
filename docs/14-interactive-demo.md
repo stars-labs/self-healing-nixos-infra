@@ -6,6 +6,7 @@ title: Interactive Demo
 import HealingWorkflow from '@site/src/components/HealingWorkflow';
 import TerminalReplay from '@site/src/components/TerminalReplay';
 import TierSimulator from '@site/src/components/TierSimulator';
+import ContextTimeline from '@site/src/components/ContextTimeline';
 
 # Interactive Demo
 
@@ -33,6 +34,12 @@ Explore how OpenClaw classifies different incidents into action tiers. Click a s
 
 <TierSimulator lang="en" />
 
+## Context Management
+
+See how OpenClaw maintains context across operations — correlating events into incidents, tracking multi-step sessions, and learning patterns for proactive actions. For full details, see [OpenClaw Context Management](./context-management).
+
+<ContextTimeline lang="en" />
+
 ## How These Map to the Tutorial
 
 | Demo | Related Chapters |
@@ -42,6 +49,7 @@ Explore how OpenClaw classifies different incidents into action tiers. Click a s
 | Terminal: OpenClaw | [Install OpenClaw](./install-openclaw), [AI-Managed Infrastructure](./ai-managed-infra) |
 | Terminal: Snapshots | [Btrfs Snapshots](./btrfs-snapshots), [Database Snapshot Strategy](./database-snapshot-strategy) |
 | Decision Simulator | [AI-Managed Infrastructure](./ai-managed-infra), [TOTP Sudo Protection](./totp-sudo-protection) |
+| Context Management | [OpenClaw Context Management](./context-management), [AI Safety & Rollback](./ai-safety-and-rollback) |
 
 :::tip Try the Scenarios
 The Decision Simulator covers 5 real-world scenarios. Try each one to understand how OpenClaw's tier system balances automation speed with safety guardrails.
