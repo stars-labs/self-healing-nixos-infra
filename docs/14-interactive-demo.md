@@ -1,0 +1,48 @@
+---
+sidebar_position: 15
+title: Interactive Demo
+---
+
+import HealingWorkflow from '@site/src/components/HealingWorkflow';
+import TerminalReplay from '@site/src/components/TerminalReplay';
+import TierSimulator from '@site/src/components/TierSimulator';
+
+# Interactive Demo
+
+Experience the self-healing NixOS infrastructure in action. These interactive demos visualize the core concepts covered in this tutorial.
+
+## Self-Healing Workflow
+
+Watch how OpenClaw detects, analyzes, and resolves issues — with automatic rollback when things go wrong. Click **Play** to start the animation, and switch between the **Success** and **Failure + Rollback** scenarios.
+
+<HealingWorkflow lang="en" />
+
+## Terminal Operations
+
+Simulated terminal sessions showing real commands for snapshot management, rollback operations, and OpenClaw AI operations. Select a tab and click **Play** to watch.
+
+<TerminalReplay lang="en" />
+
+## OpenClaw Decision Simulator
+
+Explore how OpenClaw classifies different incidents into action tiers. Click a scenario, then select an action to see how OpenClaw would handle it.
+
+- **Tier 1 (Autonomous)**: Low-risk actions executed immediately
+- **Tier 2 (Supervised)**: Medium-risk with admin notification and auto-apply window
+- **Tier 3 (TOTP Gated)**: High-risk requiring explicit TOTP approval
+
+<TierSimulator lang="en" />
+
+## How These Map to the Tutorial
+
+| Demo | Related Chapters |
+|---|---|
+| Self-Healing Workflow | [Architecture](./architecture), [AI-Managed Infrastructure](./ai-managed-infra), [AI Safety & Rollback](./ai-safety-and-rollback) |
+| Terminal: Rollback | [Btrfs Snapshots](./btrfs-snapshots), [Disaster Recovery](./disaster-recovery) |
+| Terminal: OpenClaw | [Install OpenClaw](./install-openclaw), [AI-Managed Infrastructure](./ai-managed-infra) |
+| Terminal: Snapshots | [Btrfs Snapshots](./btrfs-snapshots), [Database Snapshot Strategy](./database-snapshot-strategy) |
+| Decision Simulator | [AI-Managed Infrastructure](./ai-managed-infra), [TOTP Sudo Protection](./totp-sudo-protection) |
+
+:::tip Try the Scenarios
+The Decision Simulator covers 5 real-world scenarios. Try each one to understand how OpenClaw's tier system balances automation speed with safety guardrails.
+:::

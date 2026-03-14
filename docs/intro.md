@@ -93,6 +93,7 @@ This tutorial assumes no prior NixOS experience. Each step is explained from fir
 12. **[Impermanence Setup](./impermanence-setup)** — "Erase your darlings" stateless root filesystem
 13. **[Security Hardening](./security-hardening)** — Firewall, SSH, Fail2ban, kernel & service hardening
 14. **[FAQ](./faq)** — Common questions and troubleshooting
+15. **[Interactive Demo](./interactive-demo)** — Animated workflows, terminal replays, and decision simulator
 
 :::warning Production Readiness
 This tutorial uses realistic, production-grade configurations. However, always test in a staging environment before applying to production servers. Every environment has unique requirements.

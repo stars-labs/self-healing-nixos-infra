@@ -42,6 +42,7 @@ const sidebars = {
         'faq',
       ],
     },
+    'interactive-demo',
   ],
 };
 

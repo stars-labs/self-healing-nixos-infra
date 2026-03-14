@@ -93,6 +93,7 @@ flowchart TB
 12. **[Impermanence 设置](./impermanence-setup)** — "擦除你的挚爱" 无状态根文件系统
 13. **[安全加固](./security-hardening)** — 防火墙、SSH、Fail2ban、内核与服务加固
 14. **[常见问题 (FAQ)](./faq)** — 常见问题与故障排除
+15. **[交互式演示](./interactive-demo)** — 动画工作流、终端回放与决策模拟器
 
 :::warning 生产可用性提示
 本教程使用了贴近真实生产环境的配置。然而，在将其应用到生产服务器之前，请务必在测试环境（Staging）中对其进行测试。每个环境都有其特殊需求。
