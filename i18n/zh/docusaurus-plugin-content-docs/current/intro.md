@@ -89,7 +89,10 @@ flowchart TB
 8. **[数据库快照策略](./database-snapshot-strategy)** — 结合 Btrfs 的一致性数据库备份
 9. **[灾难恢复](./disaster-recovery)** — 完整的数据和系统恢复流程
 10. **[AI 安全与回滚](./ai-safety-and-rollback)** — 护栏规则与回滚工作流
-11. **[常见问题 (FAQ)](./faq)** — 常见问题与故障排除
+11. **[监控与告警](./monitoring-alerting)** — Prometheus、Grafana、Loki 为 OpenClaw 提供可观测性
+12. **[Impermanence 设置](./impermanence-setup)** — "擦除你的挚爱" 无状态根文件系统
+13. **[安全加固](./security-hardening)** — 防火墙、SSH、Fail2ban、内核与服务加固
+14. **[常见问题 (FAQ)](./faq)** — 常见问题与故障排除
 
 :::warning 生产可用性提示
 本教程使用了贴近真实生产环境的配置。然而，在将其应用到生产服务器之前，请务必在测试环境（Staging）中对其进行测试。每个环境都有其特殊需求。

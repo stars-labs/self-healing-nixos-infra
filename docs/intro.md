@@ -89,7 +89,10 @@ This tutorial assumes no prior NixOS experience. Each step is explained from fir
 8. **[Database Snapshot Strategy](./database-snapshot-strategy)** — Consistent database backups with Btrfs
 9. **[Disaster Recovery](./disaster-recovery)** — Full recovery procedures
 10. **[AI Safety & Rollback](./ai-safety-and-rollback)** — Guardrails and rollback workflows
-11. **[FAQ](./faq)** — Common questions and troubleshooting
+11. **[Monitoring & Alerting](./monitoring-alerting)** — Prometheus, Grafana, Loki for OpenClaw observability
+12. **[Impermanence Setup](./impermanence-setup)** — "Erase your darlings" stateless root filesystem
+13. **[Security Hardening](./security-hardening)** — Firewall, SSH, Fail2ban, kernel & service hardening
+14. **[FAQ](./faq)** — Common questions and troubleshooting
 
 :::warning Production Readiness
 This tutorial uses realistic, production-grade configurations. However, always test in a staging environment before applying to production servers. Every environment has unique requirements.

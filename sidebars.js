@@ -32,6 +32,16 @@ const sidebars = {
         'ai-safety-and-rollback',
       ],
     },
+    {
+      type: 'category',
+      label: 'Production Operations',
+      items: [
+        'monitoring-alerting',
+        'impermanence-setup',
+        'security-hardening',
+        'faq',
+      ],
+    },
   ],
 };
 
