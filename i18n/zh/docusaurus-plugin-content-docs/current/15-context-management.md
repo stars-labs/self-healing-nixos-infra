@@ -5,13 +5,13 @@ title: OpenClaw 上下文管理
 
 import ContextTimeline from '@site/src/components/ContextTimeline';
 
-# OpenClaw Context Management
+# OpenClaw 上下文管理
 
-Without context management, every monitoring cycle is a blank slate — OpenClaw sees a high memory alert and knows nothing about the last 30 minutes of creeping memory growth. This chapter designs the **context layer** that gives OpenClaw memory, continuity, and the ability to learn from past operations.
+如果没有上下文管理，每个监控周期都是一张白纸 —— OpenClaw 看到一个高内存告警，却对过去 30 分钟内不断攀升的内存增长一无所知。本章设计了**上下文层**，赋予 OpenClaw 记忆、连续性以及从过往操作中学习的能力。
 
-## The Problem: Stateless AI Operations
+## 问题：无状态的 AI 运维
 
-Traditional monitoring treats each alert independently:
+传统监控将每个告警独立对待：
 
 ```
 10:00  Memory: 72%  → No action
@@ -20,7 +20,7 @@ Traditional monitoring treats each alert independently:
 10:30  Memory: 91%  → ALERT! Restart service.
 ```
 
-With context management, OpenClaw connects the dots:
+通过上下文管理，OpenClaw 能够将这些事件串联起来：
 
 ```
 10:00  Memory: 72%  → Logged to trend baseline
@@ -30,41 +30,41 @@ With context management, OpenClaw connects the dots:
 10:32  Knowledge saved: "app-worker leaks after 48h uptime"
 ```
 
-**The difference**: context-aware OpenClaw acts with understanding, not just thresholds.
+**差别在于**：具有上下文感知能力的 OpenClaw 是基于理解来行动，而不仅仅是基于阈值。
 
-## Interactive Demo: Context in Action
+## 交互式演示：上下文实战
 
 <ContextTimeline lang="zh" />
 
-## Context Architecture
+## 上下文架构
 
 ```mermaid
 flowchart TB
-    subgraph ContextLayer["Context Management Layer"]
+    subgraph ContextLayer["上下文管理层"]
         direction TB
-        ES[Event Stream<br/>metrics, logs, alerts]
-        ES --> EC[Event Correlator<br/>link related events]
-        EC --> SM[Session Manager<br/>group multi-step ops]
-        SM --> KB[Knowledge Base<br/>patterns and history]
-        KB --> PE[Prediction Engine<br/>proactive actions]
+        ES[事件流<br/>指标、日志、告警]
+        ES --> EC[事件关联器<br/>关联相关事件]
+        EC --> SM[会话管理器<br/>分组多步操作]
+        SM --> KB[知识库<br/>模式与历史]
+        KB --> PE[预测引擎<br/>主动操作]
     end
 
-    subgraph Storage["Persistent Context Store"]
+    subgraph Storage["持久化上下文存储"]
         direction LR
-        EL[Event Log<br/>JSONL, 90 days]
-        IL[Incident Log<br/>correlated chains]
-        SL[Session Log<br/>multi-step ops]
-        KS[Knowledge Store<br/>patterns, facts]
+        EL[事件日志<br/>JSONL，90 天]
+        IL[事件链日志<br/>关联事件链]
+        SL[会话日志<br/>多步操作]
+        KS[知识存储<br/>模式与事实]
     end
 
     EC --> EL
     EC --> IL
     SM --> SL
     KB --> KS
-    PE --> OC[OpenClaw<br/>Decision Engine]
+    PE --> OC[OpenClaw<br/>决策引擎]
 ```
 
-## Context Store Configuration
+## 上下文存储配置
 
 ```nix title="openclaw-context.nix"
 { config, pkgs, ... }:
@@ -213,11 +213,11 @@ flowchart TB
 }
 ```
 
-## Event Correlation
+## 事件关联
 
-The correlation engine links events that share a causal relationship, turning noisy alerts into coherent incidents.
+关联引擎将具有因果关系的事件链接在一起，将嘈杂的告警转化为连贯的事件。
 
-### Correlation Data Model
+### 关联数据模型
 
 ```json
 {
@@ -269,37 +269,37 @@ The correlation engine links events that share a causal relationship, turning no
 }
 ```
 
-### How Correlation Improves Decisions
+### 关联如何改善决策
 
-| Without Context | With Context |
+| 无上下文 | 有上下文 |
 |---|---|
-| Alert: memory 91% — restart | Incident: 30min trend, GC evidence — restart with root cause |
-| Alert: disk 87% — clean logs | Trend: 2%/day growth — clean logs + propose config fix |
-| Alert: nginx failed — restart | Correlated: failed after rebuild — rollback, not restart |
-| Alert: SSH failures — ban IP | Pattern: same subnet daily — propose permanent block rule |
+| 告警：内存 91% —— 重启 | 事件：30 分钟趋势，GC 证据 —— 基于根因重启 |
+| 告警：磁盘 87% —— 清理日志 | 趋势：每天增长 2% —— 清理日志 + 提议配置修复 |
+| 告警：nginx 失败 —— 重启 | 关联：rebuild 后失败 —— 回滚，而非重启 |
+| 告警：SSH 失败 —— 封禁 IP | 模式：同一子网每天出现 —— 提议永久封禁规则 |
 
-## Operation Sessions
+## 操作会话
 
-Sessions group related actions into atomic operations with shared rollback boundaries.
+会话将相关操作分组为原子操作，并共享回滚边界。
 
-### Session Lifecycle
+### 会话生命周期
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Planning: Trigger detected
-    Planning --> PreFlight: Pre-checks pass
-    PreFlight --> Snapshot: Rollback point set
-    Snapshot --> Executing: Actions begin
-    Executing --> Verifying: Step completed
-    Verifying --> Executing: More steps
-    Verifying --> Committed: All checks pass
-    Verifying --> RollingBack: Check failed
-    RollingBack --> Recovered: Rollback success
-    Committed --> [*]: Session closed
-    Recovered --> [*]: Session closed
+    [*] --> 规划中: 检测到触发器
+    规划中 --> 预检: 预检通过
+    预检 --> 快照: 设置回滚点
+    快照 --> 执行中: 开始操作
+    执行中 --> 验证中: 步骤完成
+    验证中 --> 执行中: 更多步骤
+    验证中 --> 已提交: 所有检查通过
+    验证中 --> 回滚中: 检查失败
+    回滚中 --> 已恢复: 回滚成功
+    已提交 --> [*]: 会话关闭
+    已恢复 --> [*]: 会话关闭
 ```
 
-### Session Data Model
+### 会话数据模型
 
 ```json
 {
@@ -335,11 +335,11 @@ stateDiagram-v2
 }
 ```
 
-## Knowledge Base
+## 知识库
 
-The knowledge base stores patterns learned from past incidents and operations.
+知识库存储从过往事件和操作中学习到的模式。
 
-### Knowledge Categories
+### 知识分类
 
 ```nix title="Knowledge structure"
 # The knowledge base organizes learned patterns into categories:
@@ -403,9 +403,9 @@ knowledge = {
 };
 ```
 
-### Knowledge-Informed Decisions
+### 基于知识的决策
 
-When OpenClaw evaluates a new event, it queries the knowledge base:
+当 OpenClaw 评估新事件时，它会查询知识库：
 
 ```
 Input:  Memory at 78%, app-worker uptime: 46h
@@ -418,7 +418,7 @@ Decision: Don't wait for 90% threshold.
           This is a KNOWN pattern — act preemptively.
 ```
 
-Compare without knowledge:
+与无知识库的情况对比：
 
 ```
 Input:  Memory at 78%, app-worker uptime: 46h
@@ -427,9 +427,9 @@ Decision: Memory below 90% threshold. No action.
           → In 4 hours: emergency restart at 95%, users impacted.
 ```
 
-## Context-Aware LLM Prompting
+## 上下文感知的 LLM 提示
 
-The context layer enriches the LLM prompt with relevant history:
+上下文层通过注入相关历史信息来丰富 LLM 提示：
 
 ```nix title="openclaw-llm-context.nix"
 { config, ... }:
@@ -475,7 +475,7 @@ The context layer enriches the LLM prompt with relevant history:
 }
 ```
 
-### Example: Enriched LLM Prompt
+### 示例：丰富的 LLM 提示
 
 ```
 === SYSTEM CONTEXT ===
@@ -508,9 +508,9 @@ Service: app-worker (PID 4521, uptime: 46h)
 Please analyze and propose actions.
 ```
 
-## Verification
+## 验证
 
-After enabling context management:
+启用上下文管理后：
 
 ```bash
 # Check context store
@@ -541,25 +541,25 @@ sudo openclaw context stats
 sudo openclaw context incident INC-047 --timeline
 ```
 
-## Context Management Metrics
+## 上下文管理指标
 
-| Metric | What It Measures | Target |
+| 指标 | 衡量内容 | 目标 |
 |---|---|---|
-| Correlation accuracy | Events correctly grouped | &gt;85% |
-| False correlation rate | Unrelated events grouped | &lt;5% |
-| Mean time to correlate | Event to incident link | &lt;2 min |
-| Knowledge base size | Active patterns | 10-50 |
-| Prediction accuracy | Proactive actions that prevented incidents | &gt;70% |
-| Context-informed decisions | Decisions using history vs. threshold-only | &gt;60% |
-| Session success rate | Multi-step operations completed | &gt;95% |
+| 关联准确率 | 事件正确分组的比例 | &gt;85% |
+| 误关联率 | 无关事件被错误分组的比例 | &lt;5% |
+| 平均关联时间 | 从事件到事件链接的耗时 | &lt;2 分钟 |
+| 知识库规模 | 活跃模式数量 | 10-50 |
+| 预测准确率 | 成功预防事件的主动操作比例 | &gt;70% |
+| 上下文辅助决策率 | 使用历史信息而非仅基于阈值的决策比例 | &gt;60% |
+| 会话成功率 | 多步操作完成率 | &gt;95% |
 
-:::tip Context Is the Difference Between Alert Fatigue and Intelligence
-Without context, OpenClaw is a sophisticated threshold alerter. With context, it becomes an operator who remembers, learns, and anticipates. Start with event correlation — even basic linking reduces alert noise by 40-60%.
+:::tip 上下文是告警疲劳与智能运维的分水岭
+没有上下文，OpenClaw 只是一个复杂的阈值告警器。有了上下文，它就变成了一个能够记忆、学习和预判的运维专家。从事件关联开始 —— 即使是基础的事件关联也能减少 40-60% 的告警噪音。
 :::
 
-:::warning Context Store Security
-The context store contains operational patterns and system behavior. Treat it as sensitive data:
-- Restrict access to the `openclaw` user
-- Include it in your backup strategy
-- Purge knowledge entries that contain sensitive details (passwords in error logs, etc.)
+:::warning 上下文存储安全
+上下文存储包含运维模式和系统行为信息，应将其视为敏感数据：
+- 限制仅 `openclaw` 用户可访问
+- 将其纳入备份策略
+- 清除包含敏感信息的知识条目（如错误日志中的密码等）
 :::
