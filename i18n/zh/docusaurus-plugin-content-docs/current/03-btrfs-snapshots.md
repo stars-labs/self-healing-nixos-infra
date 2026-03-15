@@ -14,13 +14,13 @@ A Btrfs snapshot is an instant, space-efficient copy of a subvolume. It uses cop
 ```mermaid
 flowchart LR
     subgraph T0["Time T0: Create snapshot"]
-        A["@root (live)"] --- B["Both point to same data<br/>blocks via COW"]
-        C["@root-snap-T0"] --- B
+        A["root subvol - live"] --- B["Both point to same data<br/>blocks via COW"]
+        C["root-snap-T0"] --- B
     end
-    
-    subgraph T1["Time T1: Modify file in @root"]
-        D["@root (live)<br/>modified block"] --- E["shared blocks"]
-        F["@root-snap-T0<br/>original block"] --- E
+
+    subgraph T1["Time T1: Modify file in root subvol"]
+        D["root subvol - live<br/>modified block"] --- E["shared blocks"]
+        F["root-snap-T0<br/>original block"] --- E
     end
 ```
 

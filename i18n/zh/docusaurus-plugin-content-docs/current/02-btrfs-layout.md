@@ -27,12 +27,12 @@ ext4 is battle-tested but lacks native snapshots. LVM snapshots exist but are sl
 ```mermaid
 flowchart TB
     subgraph Btrfs["Btrfs partition (/dev/sda2)"]
-        A["@root -> /<br/>snapshotted<br/>System root, rolled back when system change fails"]
-        B["@home -> /home<br/>snapshotted<br/>User data, separate snapshot schedule"]
-        C["@nix -> /nix<br/>NOT snapshotted<br/>Nix store, content-addressed"]
-        D["@log -> /var/log<br/>NOT rolled back<br/>System logs, persists across rollbacks"]
-        E["@db -> /var/lib/db<br/>snapshotted separately<br/>Database files"]
-        F["@snapshots -> /.snapshots<br/>snapshot storage<br/>Must be separate subvolume"]
+        A["root subvol → /<br/>snapshotted<br/>System root, rolled back when system change fails"]
+        B["home subvol → /home<br/>snapshotted<br/>User data, separate snapshot schedule"]
+        C["nix subvol → /nix<br/>NOT snapshotted<br/>Nix store, content-addressed"]
+        D["log subvol → /var/log<br/>NOT rolled back<br/>System logs, persists across rollbacks"]
+        E["db subvol → /var/lib/db<br/>snapshotted separately<br/>Database files"]
+        F["snapshots subvol → /.snapshots<br/>snapshot storage<br/>Must be separate subvolume"]
     end
 ```
 
