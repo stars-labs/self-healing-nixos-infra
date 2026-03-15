@@ -1,0 +1,565 @@
+---
+sidebar_position: 16
+title: OpenClaw 上下文管理
+---
+
+import ContextTimeline from '@site/src/components/ContextTimeline';
+
+# OpenClaw 上下文管理
+
+如果没有上下文管理，每个监控周期都是一张白纸 —— OpenClaw 看到一个高内存告警，却对过去 30 分钟内不断攀升的内存增长一无所知。本章设计了**上下文层**，赋予 OpenClaw 记忆、连续性以及从过往操作中学习的能力。
+
+## 问题：无状态的 AI 运维
+
+传统监控将每个告警独立对待：
+
+```
+10:00  Memory: 72%  → No action
+10:15  Memory: 81%  → No action
+10:22  GC pause 800ms → No action (different metric)
+10:30  Memory: 91%  → ALERT! Restart service.
+```
+
+通过上下文管理，OpenClaw 能够将这些事件串联起来：
+
+```
+10:00  Memory: 72%  → Logged to trend baseline
+10:15  Memory: 81%  → Trend: +9% in 15min → Open INC-001
+10:22  GC pause 800ms → Correlated to INC-001 → Memory leak hypothesis
+10:30  Memory: 91%  → INC-001 escalated → Restart with confidence (root cause known)
+10:32  Knowledge saved: "app-worker leaks after 48h uptime"
+```
+
+**差别在于**：具有上下文感知能力的 OpenClaw 是基于理解来行动，而不仅仅是基于阈值。
+
+## 交互式演示：上下文实战
+
+<ContextTimeline lang="zh" />
+
+## 上下文架构
+
+```mermaid
+flowchart TB
+    subgraph ContextLayer["上下文管理层"]
+        direction TB
+        ES[事件流<br/>指标、日志、告警]
+        ES --> EC[事件关联器<br/>关联相关事件]
+        EC --> SM[会话管理器<br/>分组多步操作]
+        SM --> KB[知识库<br/>模式与历史]
+        KB --> PE[预测引擎<br/>主动操作]
+    end
+
+    subgraph Storage["持久化上下文存储"]
+        direction LR
+        EL[事件日志<br/>JSONL，90 天]
+        IL[事件链日志<br/>关联事件链]
+        SL[会话日志<br/>多步操作]
+        KS[知识存储<br/>模式与事实]
+    end
+
+    EC --> EL
+    EC --> IL
+    SM --> SL
+    KB --> KS
+    PE --> OC[OpenClaw<br/>决策引擎]
+```
+
+## 上下文存储配置
+
+```nix title="openclaw-context.nix"
+{ config, pkgs, ... }:
+
+{
+  services.openclaw.settings.context = {
+    enable = true;
+
+    # Persistent context storage
+    store = {
+      path = "/var/lib/openclaw/context";
+      # How long to retain different context types
+      retention = {
+        events = "7d";       # Raw events: 7 days
+        incidents = "90d";   # Correlated incidents: 90 days
+        sessions = "90d";    # Operation sessions: 90 days
+        knowledge = "365d";  # Learned patterns: 1 year
+      };
+      # Maximum store size (auto-prune oldest when exceeded)
+      maxSizeMB = 500;
+    };
+
+    # Event correlation engine
+    correlation = {
+      enable = true;
+
+      # Time window for correlating related events
+      correlationWindow = "30m";
+
+      # Correlation rules
+      rules = [
+        {
+          name = "memory-pressure";
+          description = "Correlate memory metrics with GC events and OOM signals";
+          triggers = [ "memory_usage_high" "gc_pause_long" "oom_kill" ];
+          correlateBy = "service";  # Group by affected service
+        }
+        {
+          name = "service-degradation";
+          description = "Link error rate spikes with latency increases";
+          triggers = [ "error_rate_high" "latency_p99_high" "connection_refused" ];
+          correlateBy = "service";
+        }
+        {
+          name = "disk-cascade";
+          description = "Connect disk pressure to service failures";
+          triggers = [ "disk_usage_high" "write_error" "service_failed" ];
+          correlateBy = "mountpoint";
+        }
+        {
+          name = "security-incident";
+          description = "Group related security events";
+          triggers = [ "ssh_brute_force" "sudo_failure" "port_scan" "unusual_process" ];
+          correlateBy = "source_ip";
+        }
+      ];
+    };
+
+    # Session management for multi-step operations
+    sessions = {
+      enable = true;
+
+      # Auto-create sessions for multi-step operations
+      autoSessionTriggers = [
+        "nixos-rebuild"        # System upgrades
+        "database-migration"   # DB schema changes
+        "security-update"      # CVE patches
+        "disaster-recovery"    # DR operations
+      ];
+
+      # Session timeout — auto-close stale sessions
+      sessionTimeout = "2h";
+
+      # Track rollback boundaries per session
+      trackRollbackPoints = true;
+    };
+
+    # Knowledge base — learn from past operations
+    knowledge = {
+      enable = true;
+
+      # Minimum occurrences before a pattern is considered "known"
+      patternThreshold = 2;
+
+      # Categories of knowledge to track
+      categories = [
+        "service-behavior"     # How services behave under stress
+        "failure-patterns"     # Recurring failure modes
+        "resolution-playbooks" # What fixes work for what problems
+        "timing-patterns"      # Time-of-day, day-of-week correlations
+        "capacity-trends"      # Resource growth over time
+      ];
+
+      # Feed knowledge back into decision making
+      influenceDecisions = true;
+
+      # Confidence decay — old patterns lose weight over time
+      confidenceDecayDays = 90;
+    };
+
+    # Prediction engine — proactive actions
+    prediction = {
+      enable = true;
+
+      # Predict issues based on patterns and trends
+      predictors = [
+        {
+          name = "memory-leak-cycle";
+          description = "Predict memory leaks based on uptime patterns";
+          metric = "process_uptime";
+          pattern = "cyclic_degradation";
+          action = "schedule-graceful-restart";
+          tier = 1;
+        }
+        {
+          name = "disk-growth";
+          description = "Predict disk full based on growth rate";
+          metric = "disk_usage_percent";
+          pattern = "linear_growth";
+          action = "preemptive-cleanup";
+          tier = 1;
+          leadTime = "6h";
+        }
+        {
+          name = "certificate-renewal";
+          description = "Schedule certificate renewal before expiry";
+          metric = "cert_days_remaining";
+          pattern = "countdown";
+          action = "trigger-acme-renewal";
+          tier = 2;
+          leadTime = "14d";
+        }
+      ];
+    };
+  };
+
+  # Persist context store across reboots (required with Impermanence)
+  environment.persistence."/persist".directories = [
+    {
+      directory = "/var/lib/openclaw/context";
+      user = "openclaw";
+      group = "openclaw";
+      mode = "0750";
+    }
+  ];
+}
+```
+
+## 事件关联
+
+关联引擎将具有因果关系的事件链接在一起，将嘈杂的告警转化为连贯的事件。
+
+### 关联数据模型
+
+```json
+{
+  "incident_id": "INC-001",
+  "status": "resolved",
+  "opened": "2024-03-14T10:15:00Z",
+  "resolved": "2024-03-14T10:32:00Z",
+  "duration_minutes": 17,
+  "correlation_rule": "memory-pressure",
+  "service": "app-worker",
+  "events": [
+    {
+      "time": "2024-03-14T10:00:00Z",
+      "type": "metric",
+      "detail": "memory_usage: 72% (baseline logged)"
+    },
+    {
+      "time": "2024-03-14T10:15:00Z",
+      "type": "metric",
+      "detail": "memory_usage: 81% (trend: +9% in 15m)"
+    },
+    {
+      "time": "2024-03-14T10:22:00Z",
+      "type": "log",
+      "detail": "GC pause 800ms (correlated: memory pressure)"
+    },
+    {
+      "time": "2024-03-14T10:30:00Z",
+      "type": "metric",
+      "detail": "memory_usage: 91% (threshold breach)"
+    },
+    {
+      "time": "2024-03-14T10:31:00Z",
+      "type": "action",
+      "detail": "Tier 1: restart app-worker (snapshot #42)"
+    }
+  ],
+  "resolution": {
+    "action": "service-restart",
+    "effective": true,
+    "memory_after": "45%"
+  },
+  "knowledge_extracted": {
+    "pattern": "memory-leak-on-uptime",
+    "detail": "app-worker leaks memory after 48h uptime",
+    "confidence": "medium",
+    "recommended_action": "proactive restart at 47h"
+  }
+}
+```
+
+### 关联如何改善决策
+
+| 无上下文 | 有上下文 |
+|---|---|
+| 告警：内存 91% —— 重启 | 事件：30 分钟趋势，GC 证据 —— 基于根因重启 |
+| 告警：磁盘 87% —— 清理日志 | 趋势：每天增长 2% —— 清理日志 + 提议配置修复 |
+| 告警：nginx 失败 —— 重启 | 关联：rebuild 后失败 —— 回滚，而非重启 |
+| 告警：SSH 失败 —— 封禁 IP | 模式：同一子网每天出现 —— 提议永久封禁规则 |
+
+## 操作会话
+
+会话将相关操作分组为原子操作，并共享回滚边界。
+
+### 会话生命周期
+
+```mermaid
+stateDiagram-v2
+    [*] --> 规划中: 检测到触发器
+    规划中 --> 预检: 预检通过
+    预检 --> 快照: 设置回滚点
+    快照 --> 执行中: 开始操作
+    执行中 --> 验证中: 步骤完成
+    验证中 --> 执行中: 更多步骤
+    验证中 --> 已提交: 所有检查通过
+    验证中 --> 回滚中: 检查失败
+    回滚中 --> 已恢复: 回滚成功
+    已提交 --> [*]: 会话关闭
+    已恢复 --> [*]: 会话关闭
+```
+
+### 会话数据模型
+
+```json
+{
+  "session_id": "SES-042",
+  "type": "database-migration",
+  "status": "committed",
+  "opened": "2024-03-14T14:00:00Z",
+  "closed": "2024-03-14T14:12:00Z",
+  "goal": "Upgrade PostgreSQL 15 to 16",
+  "rollback_boundary": {
+    "snapshots": {
+      "root": 42,
+      "db": 15
+    },
+    "logical_backup": "/var/backups/pg_dumpall_20240314.sql.zst"
+  },
+  "steps": [
+    { "name": "pre-flight", "status": "passed", "duration_s": 8 },
+    { "name": "snapshot", "status": "created", "duration_s": 1 },
+    { "name": "logical-backup", "status": "completed", "duration_s": 154, "size_mb": 1200 },
+    { "name": "nixos-rebuild", "status": "completed", "duration_s": 45, "totp": true },
+    { "name": "health-check", "status": "passed", "checks": 5, "duration_s": 12 }
+  ],
+  "context_from_history": [
+    "SES-031: PG 14→15 had shared_buffers issue — added extra validation",
+    "INC-019: PG connection timeout — added connection pool check"
+  ],
+  "knowledge_produced": {
+    "pattern": "pg-major-upgrade",
+    "detail": "PG 15→16 safe with current config, 12min total",
+    "confidence": "high"
+  }
+}
+```
+
+## 知识库
+
+知识库存储从过往事件和操作中学习到的模式。
+
+### 知识分类
+
+```nix title="Knowledge structure"
+# The knowledge base organizes learned patterns into categories:
+
+knowledge = {
+  service-behavior = [
+    {
+      service = "app-worker";
+      pattern = "memory-leak-on-uptime";
+      detail = "Leaks ~200MB/hour after 48h uptime";
+      confidence = "high";  # Confirmed 3 times
+      action = "proactive restart at 47h";
+      learned = "2024-03-14";
+      lastConfirmed = "2024-03-20";
+    }
+  ];
+
+  failure-patterns = [
+    {
+      pattern = "post-rebuild-nginx-failure";
+      detail = "Nginx fails if config syntax changes between nixpkgs versions";
+      rootCause = "Upstream config format change";
+      resolution = "Check nginx -t before rebuild commit";
+      confidence = "medium";
+    }
+  ];
+
+  resolution-playbooks = [
+    {
+      trigger = "postgresql-connection-refused";
+      steps = [
+        "Check pg_hba.conf (snapper diff last change)"
+        "Check max_connections (SHOW max_connections)"
+        "Check disk space on @db"
+        "Restart if config unchanged"
+      ];
+      successRate = "87%";
+      averageResolutionTime = "3m";
+    }
+  ];
+
+  timing-patterns = [
+    {
+      pattern = "monday-morning-load-spike";
+      detail = "CPU spikes to 85% between 09:00-09:30 on Mondays";
+      cause = "Batch job + user logins";
+      action = "Ignore — normal pattern, do not restart services";
+      confidence = "high";
+    }
+  ];
+
+  capacity-trends = [
+    {
+      resource = "disk-/var/lib/db";
+      growthRate = "1.2 GB/week";
+      currentUsage = "45%";
+      projectedFull = "2024-06-15";
+      recommendation = "Plan disk expansion or archival by May";
+    }
+  ];
+};
+```
+
+### 基于知识的决策
+
+当 OpenClaw 评估新事件时，它会查询知识库：
+
+```
+Input:  Memory at 78%, app-worker uptime: 46h
+Query:  knowledge.where(service="app-worker", metric="memory")
+
+Match:  "app-worker leaks ~200MB/h after 48h" (confidence: high)
+
+Decision: Don't wait for 90% threshold.
+          Schedule proactive restart in 2h (low-traffic window).
+          This is a KNOWN pattern — act preemptively.
+```
+
+与无知识库的情况对比：
+
+```
+Input:  Memory at 78%, app-worker uptime: 46h
+
+Decision: Memory below 90% threshold. No action.
+          → In 4 hours: emergency restart at 95%, users impacted.
+```
+
+## 上下文感知的 LLM 提示
+
+上下文层通过注入相关历史信息来丰富 LLM 提示：
+
+```nix title="openclaw-llm-context.nix"
+{ config, ... }:
+
+{
+  services.openclaw.settings.llm.contextInjection = {
+    enable = true;
+
+    # What context to include in LLM prompts
+    include = {
+      # Recent events (last N events for the affected service)
+      recentEvents = 20;
+
+      # Active incidents
+      activeIncidents = true;
+
+      # Current session state (if in a session)
+      currentSession = true;
+
+      # Relevant knowledge base entries
+      relevantKnowledge = 5;
+
+      # Recent actions and their outcomes
+      recentActions = 10;
+
+      # System state summary
+      systemSummary = true;
+    };
+
+    # Token budget for context (to avoid exceeding LLM limits)
+    maxContextTokens = 4000;
+
+    # Priority order when truncating
+    priority = [
+      "currentSession"       # Most important: current operation state
+      "activeIncidents"      # Second: what's happening right now
+      "relevantKnowledge"    # Third: what we know
+      "recentActions"        # Fourth: what we did recently
+      "recentEvents"         # Fifth: raw event stream
+      "systemSummary"        # Sixth: general state
+    ];
+  };
+}
+```
+
+### 示例：丰富的 LLM 提示
+
+```
+=== SYSTEM CONTEXT ===
+
+Current State:
+  CPU: 34%  Memory: 78%  Disk: 62%  Load: 1.2
+  Services: 23 active, 0 failed
+  Last rebuild: 6h ago (successful)
+
+Active Incident:
+  INC-047: memory-pressure on app-worker
+  Events: memory 72% → 78% in 20min, trending up
+  Correlation: app-worker uptime = 46h
+
+Knowledge Match:
+  PATTERN: app-worker leaks memory after 48h (confidence: HIGH)
+  Last occurrence: 3 days ago (INC-001), resolved by restart
+  Proactive action: restart before 48h in low-traffic window
+
+Recent Actions:
+  6h ago: nixos-rebuild (successful, SES-041)
+  3d ago: app-worker restart for memory leak (successful)
+
+Current Session: None
+
+=== ALERT ===
+Memory usage trending up: 78% (threshold: 90%)
+Service: app-worker (PID 4521, uptime: 46h)
+
+Please analyze and propose actions.
+```
+
+## 验证
+
+启用上下文管理后：
+
+```bash
+# Check context store
+ls -la /var/lib/openclaw/context/
+# Should show: events/ incidents/ sessions/ knowledge/
+
+# View active incidents
+sudo openclaw context incidents --active
+# INC-047  memory-pressure  app-worker  OPEN  20min
+
+# View knowledge base
+sudo openclaw context knowledge --list
+# 12 patterns, 5 playbooks, 3 timing patterns, 2 capacity trends
+
+# View current session (if any)
+sudo openclaw context session --current
+# No active session
+
+# Check correlation stats
+sudo openclaw context stats
+# Events processed: 14,521
+# Incidents created: 47
+# Patterns learned: 12
+# Predictions made: 8 (7 accurate)
+# Average incident duration: 8.3 min (vs 23.1 min without context)
+
+# View a specific incident chain
+sudo openclaw context incident INC-047 --timeline
+```
+
+## 上下文管理指标
+
+| 指标 | 衡量内容 | 目标 |
+|---|---|---|
+| 关联准确率 | 事件正确分组的比例 | &gt;85% |
+| 误关联率 | 无关事件被错误分组的比例 | &lt;5% |
+| 平均关联时间 | 从事件到事件链接的耗时 | &lt;2 分钟 |
+| 知识库规模 | 活跃模式数量 | 10-50 |
+| 预测准确率 | 成功预防事件的主动操作比例 | &gt;70% |
+| 上下文辅助决策率 | 使用历史信息而非仅基于阈值的决策比例 | &gt;60% |
+| 会话成功率 | 多步操作完成率 | &gt;95% |
+
+:::tip 上下文是告警疲劳与智能运维的分水岭
+没有上下文，OpenClaw 只是一个复杂的阈值告警器。有了上下文，它就变成了一个能够记忆、学习和预判的运维专家。从事件关联开始 —— 即使是基础的事件关联也能减少 40-60% 的告警噪音。
+:::
+
+:::warning 上下文存储安全
+上下文存储包含运维模式和系统行为信息，应将其视为敏感数据：
+- 限制仅 `openclaw` 用户可访问
+- 将其纳入备份策略
+- 清除包含敏感信息的知识条目（如错误日志中的密码等）
+:::

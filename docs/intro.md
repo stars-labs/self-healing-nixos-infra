@@ -85,7 +85,8 @@ This tutorial assumes no prior NixOS experience. Each step is explained from fir
 4. **[Btrfs Snapshots & Snapper](./btrfs-snapshots)** — Automate snapshot creation and cleanup
 5. **[Install OpenClaw](./install-openclaw)** — Set up the AI infrastructure operator
 6. **[AI-Managed Infrastructure](./ai-managed-infra)** — Configure AI-assisted operations
-7. **[TOTP Sudo Protection](./totp-sudo-protection)** — Gate critical commands behind TOTP
+7. **[OpenClaw Context Management](./context-management)** — Event correlation, session continuity, and knowledge learning
+8. **[TOTP Sudo Protection](./totp-sudo-protection)** — Gate critical commands behind TOTP
 8. **[Database Snapshot Strategy](./database-snapshot-strategy)** — Consistent database backups with Btrfs
 9. **[Disaster Recovery](./disaster-recovery)** — Full recovery procedures
 10. **[AI Safety & Rollback](./ai-safety-and-rollback)** — Guardrails and rollback workflows
@@ -93,6 +94,7 @@ This tutorial assumes no prior NixOS experience. Each step is explained from fir
 12. **[Impermanence Setup](./impermanence-setup)** — "Erase your darlings" stateless root filesystem
 13. **[Security Hardening](./security-hardening)** — Firewall, SSH, Fail2ban, kernel & service hardening
 14. **[FAQ](./faq)** — Common questions and troubleshooting
+15. **[Interactive Demo](./interactive-demo)** — Animated workflows, terminal replays, and decision simulator
 
 :::warning Production Readiness
 This tutorial uses realistic, production-grade configurations. However, always test in a staging environment before applying to production servers. Every environment has unique requirements.
