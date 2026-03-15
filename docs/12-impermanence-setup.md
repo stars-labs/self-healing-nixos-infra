@@ -45,8 +45,8 @@ On each boot:
 
 ```mermaid
 flowchart LR
-    A[Boot] --> B[Delete @root]
-    B --> C[Create empty @root]
+    A[Boot] --> B[Delete root subvol]
+    B --> C[Create empty root subvol]
     C --> D[NixOS activation]
     D --> E[Mount /persist binds]
     E --> F[System ready]

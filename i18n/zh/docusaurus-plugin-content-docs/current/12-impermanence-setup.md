@@ -45,8 +45,8 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    A[启动] --> B[删除 @root]
-    B --> C[创建空的 @root]
+    A[启动] --> B[删除 root 子卷]
+    B --> C[创建空 root 子卷]
     C --> D[NixOS 激活]
     D --> E[挂载 /persist 绑定]
     E --> F[系统就绪]

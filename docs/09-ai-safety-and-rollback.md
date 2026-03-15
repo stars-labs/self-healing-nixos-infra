@@ -383,7 +383,7 @@ flowchart TB
         OC["OpenClaw AI Operator<br/>Monitor • Detect • Propose"] --> PE["Policy Engine<br/>Tier 1-3 • Rate limit • Whitelist"]
         PE --> TG["TOTP Gate<br/>6-digit code • pam_oath • Audit logged"]
         TG --> SR["safe-rebuild<br/>1. Snapshot 2. Rebuild<br/>3. Health check 4. Commit/rollback"]
-        SR --> BF["Btrfs Filesystem<br/>@root / @home / @db / @nix / @log / @snapshots<br/>Snapper: hourly timeline + pre/post rebuild pairs<br/>Backup: daily btrfs send/receive to remote"]
+        SR --> BF["Btrfs Filesystem<br/>root / home / db / nix / log / snapshots<br/>Snapper: hourly timeline + pre/post rebuild pairs<br/>Backup: daily btrfs send/receive to remote"]
     end
 
     BF --> R1["Recovery: snapper undochange"]
