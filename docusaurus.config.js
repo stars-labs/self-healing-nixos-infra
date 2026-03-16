@@ -64,6 +64,12 @@ const config = {
             label: 'Tutorial',
           },
           {
+            type: 'doc',
+            docId: 'interactive-demo',
+            position: 'left',
+            label: 'Demos',
+          },
+          {
             type: 'localeDropdown',
             position: 'right',
           },

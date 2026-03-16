@@ -81,7 +81,7 @@ sequenceDiagram
     participant Health as Health Check
     
     AI->>Snap: Propose change
-    Note over Snap: Before ANY change:<br/>btrfs snapshot root -&gt; root-pre
+    Note over Snap: Before ANY change:<br/>btrfs snapshot root → root-pre
     Snap-->>Nix: Snapshot confirmed
     Nix->>Health: Apply config
     alt Health check passes

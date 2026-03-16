@@ -14,5 +14,9 @@
   "sidebar.tutorialSidebar.category.Security & Recovery": {
     "message": "安全与恢复",
     "description": "The label for category 'Security & Recovery' in sidebar 'tutorialSidebar'"
+  },
+  "sidebar.tutorialSidebar.doc.Interactive Demos": {
+    "message": "交互式演示",
+    "description": "The label for doc 'Interactive Demos' in sidebar 'tutorialSidebar'"
   }
 }

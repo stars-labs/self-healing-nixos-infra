@@ -325,5 +325,230 @@
   "theme.tags.tagsPageTitle": {
     "message": "标签",
     "description": "The title of the tag list page"
+  },
+  "demo.healing.step.detect": {
+    "message": "检测异常"
+  },
+  "demo.healing.step.detect.desc": {
+    "message": "OpenClaw 监控检测到服务降级或故障"
+  },
+  "demo.healing.step.analyze": {
+    "message": "分析根因"
+  },
+  "demo.healing.step.analyze.desc": {
+    "message": "AI 分析日志、指标和系统状态以识别问题"
+  },
+  "demo.healing.step.classify": {
+    "message": "分类层级"
+  },
+  "demo.healing.step.classify.desc": {
+    "message": "确定修复层级：T1（重启）、T2（重配置）或 T3（重建）"
+  },
+  "demo.healing.step.snapshot": {
+    "message": "创建快照"
+  },
+  "demo.healing.step.snapshot.desc": {
+    "message": "在任何更改之前创建 Btrfs 快照以便安全回滚"
+  },
+  "demo.healing.step.execute": {
+    "message": "执行修复"
+  },
+  "demo.healing.step.execute.desc": {
+    "message": "应用修复：重启服务、更新配置或 nixos-rebuild"
+  },
+  "demo.healing.step.verify": {
+    "message": "验证修复"
+  },
+  "demo.healing.step.verify.desc": {
+    "message": "运行健康检查以确认问题已解决"
+  },
+  "demo.healing.step.commit": {
+    "message": "提交变更"
+  },
+  "demo.healing.step.commit.desc": {
+    "message": "变更已提交到 NixOS 配置并保留快照"
+  },
+  "demo.healing.step.rollback": {
+    "message": "回滚"
+  },
+  "demo.healing.step.rollback.desc": {
+    "message": "验证失败 — 正在回滚到变更前的 Btrfs 快照"
+  },
+  "demo.healing.step.recovered": {
+    "message": "系统已恢复"
+  },
+  "demo.healing.step.recovered.desc": {
+    "message": "系统已恢复到已知良好状态，事件已记录以供审查"
+  },
+  "demo.healing.play": {
+    "message": "播放"
+  },
+  "demo.healing.pause": {
+    "message": "暂停"
+  },
+  "demo.healing.reset": {
+    "message": "重置"
+  },
+  "demo.healing.scenario.success": {
+    "message": "成功"
+  },
+  "demo.healing.scenario.failure": {
+    "message": "失败"
+  },
+  "demo.terminal.tab.rollback": {
+    "message": "快照回滚"
+  },
+  "demo.terminal.tab.openclaw": {
+    "message": "OpenClaw AI 运维"
+  },
+  "demo.terminal.tab.btrfs": {
+    "message": "Btrfs 快照管理"
+  },
+  "demo.terminal.placeholder": {
+    "message": "按播放开始回放..."
+  },
+  "demo.terminal.play": {
+    "message": "播放"
+  },
+  "demo.terminal.pause": {
+    "message": "暂停"
+  },
+  "demo.terminal.reset": {
+    "message": "重置"
+  },
+  "demo.tier.scenario.memory.title": {
+    "message": "内存使用率过高 (95%)"
+  },
+  "demo.tier.scenario.memory.desc": {
+    "message": "服务器内存使用率已超过 95% 阈值"
+  },
+  "demo.tier.scenario.memory.t1": {
+    "message": "重启服务"
+  },
+  "demo.tier.scenario.memory.t1.result": {
+    "message": "已重启内存泄漏的服务。内存降至 62%。快速修复但可能复发。"
+  },
+  "demo.tier.scenario.memory.t2": {
+    "message": "添加交换空间"
+  },
+  "demo.tier.scenario.memory.t2.result": {
+    "message": "已添加 4GB 交换文件并配置 swappiness。内存压力已缓解。需要监控。"
+  },
+  "demo.tier.scenario.memory.t3": {
+    "message": "重建并设置内存限制"
+  },
+  "demo.tier.scenario.memory.t3.result": {
+    "message": "使用 systemd 内存限制 (MemoryMax=2G) 运行 nixos-rebuild。永久修复，可通过 Btrfs 快照回滚。"
+  },
+  "demo.tier.scenario.disk.title": {
+    "message": "磁盘已满"
+  },
+  "demo.tier.scenario.disk.desc": {
+    "message": "根文件系统容量已达 98%"
+  },
+  "demo.tier.scenario.disk.t1": {
+    "message": "清理临时文件"
+  },
+  "demo.tier.scenario.disk.t1.result": {
+    "message": "已删除旧的 Nix 代和临时文件。释放了 8GB。磁盘使用率降至 74%。"
+  },
+  "demo.tier.scenario.disk.t2": {
+    "message": "扩展分区"
+  },
+  "demo.tier.scenario.disk.t2.result": {
+    "message": "在线扩展了 Btrfs 文件系统。零停机。新容量：100GB。"
+  },
+  "demo.tier.scenario.disk.t3": {
+    "message": "重建存储配置"
+  },
+  "demo.tier.scenario.disk.t3.result": {
+    "message": "使用更新的存储配置运行 nixos-rebuild，包括 Btrfs 压缩 (zstd)。已创建重建前快照。"
+  },
+  "demo.tier.scenario.ssh.title": {
+    "message": "SSH 暴力破解攻击"
+  },
+  "demo.tier.scenario.ssh.desc": {
+    "message": "检测到来自单个 IP 的 500+ 次 SSH 登录失败尝试"
+  },
+  "demo.tier.scenario.ssh.t1": {
+    "message": "封禁 IP"
+  },
+  "demo.tier.scenario.ssh.t1.result": {
+    "message": "通过 iptables 封禁了攻击者 IP。即时威胁已消除。临时修复。"
+  },
+  "demo.tier.scenario.ssh.t2": {
+    "message": "更新防火墙规则"
+  },
+  "demo.tier.scenario.ssh.t2.result": {
+    "message": "更新了 nftables 规则，增加了速率限制和地理封锁。无需重建即可应用。"
+  },
+  "demo.tier.scenario.ssh.t3": {
+    "message": "重新配置 SSH"
+  },
+  "demo.tier.scenario.ssh.t3.result": {
+    "message": "使用加固的 sshd 配置运行 nixos-rebuild：仅密钥认证、fail2ban、端口更改。已创建重建前快照。"
+  },
+  "demo.tier.scenario.cert.title": {
+    "message": "TLS 证书过期"
+  },
+  "demo.tier.scenario.cert.desc": {
+    "message": "HTTPS 证书已过期，导致服务中断"
+  },
+  "demo.tier.scenario.cert.t1": {
+    "message": "续期证书"
+  },
+  "demo.tier.scenario.cert.t1.result": {
+    "message": "运行 certbot renew。新证书有效期 90 天。服务已恢复。"
+  },
+  "demo.tier.scenario.cert.t2": {
+    "message": "更新 ACME 配置"
+  },
+  "demo.tier.scenario.cert.t2.result": {
+    "message": "更新了 ACME 配置，增加了自动续期定时器和监控告警。"
+  },
+  "demo.tier.scenario.cert.t3": {
+    "message": "使用新 CA 重建"
+  },
+  "demo.tier.scenario.cert.t3.result": {
+    "message": "使用 security.acme 配置运行 nixos-rebuild，实现自动 Let's Encrypt。已创建快照。永久修复。"
+  },
+  "demo.tier.scenario.db.title": {
+    "message": "数据库崩溃"
+  },
+  "demo.tier.scenario.db.desc": {
+    "message": "PostgreSQL 因 WAL 文件损坏而崩溃"
+  },
+  "demo.tier.scenario.db.t1": {
+    "message": "重启 PostgreSQL"
+  },
+  "demo.tier.scenario.db.t1.result": {
+    "message": "使用 pg_resetwal 重启 PostgreSQL。服务运行中但数据完整性不确定。"
+  },
+  "demo.tier.scenario.db.t2": {
+    "message": "从副本恢复"
+  },
+  "demo.tier.scenario.db.t2.result": {
+    "message": "将备用副本提升为主库。丢失 30 秒数据。服务已恢复。"
+  },
+  "demo.tier.scenario.db.t3": {
+    "message": "从快照完全回滚"
+  },
+  "demo.tier.scenario.db.t3.result": {
+    "message": "从最近的 Btrfs 快照恢复数据库。使用更新的 PostgreSQL 配置运行 nixos-rebuild。从快照点零数据丢失。"
+  },
+  "demo.tier.chooseAction": {
+    "message": "选择修复操作："
+  },
+  "demo.tier.risk.low": {
+    "message": "低"
+  },
+  "demo.tier.risk.medium": {
+    "message": "中"
+  },
+  "demo.tier.risk.high": {
+    "message": "高"
+  },
+  "demo.tier.result": {
+    "message": "结果"
   }
 }

@@ -32,3 +32,29 @@ article .markdown pre {
 .admonition {
   border-radius: 8px;
 }
+
+/* Demo component shared variables */
+:root {
+  --demo-tier1-color: #22c55e;
+  --demo-tier2-color: #f59e0b;
+  --demo-tier3-color: #ef4444;
+  --demo-terminal-bg: #1e1e2e;
+  --demo-terminal-text: #cdd6f4;
+  --demo-terminal-green: #a6e3a1;
+  --demo-terminal-red: #f38ba8;
+  --demo-terminal-yellow: #f9e2af;
+  --demo-terminal-blue: #89b4fa;
+  --demo-success-bg: #f0fdf4;
+  --demo-failure-bg: #fef2f2;
+  --demo-card-bg: #ffffff;
+  --demo-card-border: #e5e7eb;
+  --demo-muted-text: #6b7280;
+}
+
+[data-theme='dark'] {
+  --demo-success-bg: #052e16;
+  --demo-failure-bg: #450a0a;
+  --demo-card-bg: #1f2937;
+  --demo-card-border: #374151;
+  --demo-muted-text: #9ca3af;
+}

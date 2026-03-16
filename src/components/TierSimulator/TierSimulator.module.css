@@ -1,0 +1,166 @@
+.container {
+  padding: 1.5rem;
+  border: 1px solid var(--demo-card-border);
+  border-radius: 12px;
+  background: var(--demo-card-bg);
+  margin: 1.5rem 0;
+}
+
+.scenarioGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.scenarioCard {
+  padding: 0.75rem;
+  border: 2px solid var(--demo-card-border);
+  border-radius: 8px;
+  background: var(--demo-card-bg);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+  text-align: center;
+}
+
+.scenarioCard:hover {
+  border-color: var(--ifm-color-primary);
+  transform: translateY(-1px);
+}
+
+.scenarioCardActive {
+  border-color: var(--ifm-color-primary);
+  background: rgba(91, 123, 213, 0.05);
+}
+
+.scenarioIcon {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.scenarioTitle {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.scenarioDesc {
+  font-size: 0.85rem;
+  color: var(--demo-muted-text);
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+}
+
+[data-theme='dark'] .scenarioDesc {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.actionsLabel {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  color: var(--demo-muted-text);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--demo-card-border);
+  border-radius: 8px;
+  background: var(--demo-card-bg);
+  color: var(--ifm-font-color-base);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+  width: 100%;
+}
+
+.actionBtn:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+.actionBtnSelected {
+  border-color: var(--ifm-color-primary);
+  background: rgba(91, 123, 213, 0.05);
+}
+
+.tierBadge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.tierBadge1 { background: var(--demo-tier1-color); }
+.tierBadge2 { background: var(--demo-tier2-color); }
+.tierBadge3 { background: var(--demo-tier3-color); }
+
+.actionLabel {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.riskBadge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.riskLow {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--demo-tier1-color);
+}
+
+.riskMedium {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--demo-tier2-color);
+}
+
+.riskHigh {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--demo-tier3-color);
+}
+
+.resultPanel {
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid var(--demo-card-border);
+  background: var(--demo-card-bg);
+  animation: slideIn 0.3s ease;
+}
+
+.resultTier1 { border-left-color: var(--demo-tier1-color); background: var(--demo-success-bg); }
+.resultTier2 { border-left-color: var(--demo-tier2-color); }
+.resultTier3 { border-left-color: var(--demo-tier3-color); background: var(--demo-failure-bg); }
+
+.resultTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.resultText {
+  font-size: 0.85rem;
+  color: var(--demo-muted-text);
+  line-height: 1.5;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
