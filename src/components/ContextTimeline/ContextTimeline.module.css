@@ -1,0 +1,129 @@
+.container {
+  padding: 1.5rem;
+  border: 1px solid var(--demo-card-border);
+  border-radius: 12px;
+  background: var(--demo-card-bg);
+  margin: 1.5rem 0;
+}
+
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.btn {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--demo-card-border);
+  border-radius: 6px;
+  background: var(--demo-card-bg);
+  color: var(--ifm-font-color-base);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+.timeline {
+  position: relative;
+  padding-left: 3.5rem;
+}
+
+.event {
+  position: relative;
+  padding: 0.75rem 0;
+  opacity: 0.3;
+  transition: opacity 0.4s ease;
+}
+
+.eventVisible {
+  opacity: 1;
+}
+
+.timeLabel {
+  position: absolute;
+  left: -3.5rem;
+  top: 0.85rem;
+  width: 2.8rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  color: var(--demo-muted-text);
+  text-align: right;
+}
+
+.icon {
+  position: absolute;
+  left: -0.6rem;
+  top: 0.75rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  z-index: 1;
+}
+
+.connector {
+  position: absolute;
+  left: 0.15rem;
+  top: 2.25rem;
+  width: 2px;
+  height: calc(100% - 1.5rem);
+  background: var(--demo-card-border);
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 0.4s ease;
+}
+
+.connectorVisible {
+  transform: scaleY(1);
+}
+
+.connectorWarning { background: var(--demo-tier2-color); }
+.connectorError { background: var(--demo-tier3-color); }
+.connectorSuccess { background: var(--demo-tier1-color); }
+.connectorInfo { background: var(--ifm-color-primary); }
+
+.card {
+  margin-left: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--demo-card-border);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme='dark'] .card {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cardInfo { border-left-color: var(--ifm-color-primary); }
+.cardWarning { border-left-color: var(--demo-tier2-color); }
+.cardError { border-left-color: var(--demo-tier3-color); }
+.cardSuccess { border-left-color: var(--demo-tier1-color); }
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.cardDesc {
+  font-size: 0.82rem;
+  color: var(--demo-muted-text);
+  margin-bottom: 0.25rem;
+}
+
+.contextBadge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  background: rgba(91, 123, 213, 0.1);
+  color: var(--ifm-color-primary);
+}

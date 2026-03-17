@@ -550,5 +550,68 @@
   },
   "demo.tier.result": {
     "message": "结果"
+  },
+  "demo.context.play": {
+    "message": "播放"
+  },
+  "demo.context.pause": {
+    "message": "暂停"
+  },
+  "demo.context.reset": {
+    "message": "重置"
+  },
+  "demo.context.event.baseline.title": {
+    "message": "记录基线"
+  },
+  "demo.context.event.baseline.desc": {
+    "message": "内存 72%。已记录趋势基线。无需操作。"
+  },
+  "demo.context.event.baseline.ctx": {
+    "message": "趋势：稳定"
+  },
+  "demo.context.event.trend.title": {
+    "message": "检测到趋势"
+  },
+  "demo.context.event.trend.desc": {
+    "message": "内存 81%。15 分钟内上升 +9%。已创建事件 INC-001。"
+  },
+  "demo.context.event.trend.ctx": {
+    "message": "趋势：上升 (+9%/15分钟)"
+  },
+  "demo.context.event.correlate.title": {
+    "message": "事件关联"
+  },
+  "demo.context.event.correlate.desc": {
+    "message": "检测到 GC 暂停 800ms。已关联到 INC-001。形成内存泄漏假设。"
+  },
+  "demo.context.event.correlate.ctx": {
+    "message": "关联：INC-001（内存泄漏）"
+  },
+  "demo.context.event.escalate.title": {
+    "message": "事件升级"
+  },
+  "demo.context.event.escalate.desc": {
+    "message": "内存 91%。INC-001 已升级。基于已知根因重启服务。"
+  },
+  "demo.context.event.escalate.ctx": {
+    "message": "操作：重启（置信度：高）"
+  },
+  "demo.context.event.resolve.title": {
+    "message": "知识已保存"
+  },
+  "demo.context.event.resolve.desc": {
+    "message": "服务已重启。学到模式：「app-worker 运行 48 小时后内存泄漏」。"
+  },
+  "demo.context.event.resolve.ctx": {
+    "message": "模式已存储用于主动预防"
+  },
+  "demo.context.event.proactive.title": {
+    "message": "主动预防"
+  },
+  "demo.context.event.proactive.desc": {
+    "message": "48 小时后：基于学习到的模式安排预防性重启。未触发告警。"
+  },
+  "demo.context.event.proactive.ctx": {
+    "message": "来源：学习模式 INC-001"
   }
 }

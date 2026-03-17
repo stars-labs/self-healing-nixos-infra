@@ -283,17 +283,292 @@ OpenClaw can manage database snapshots as part of its monitoring:
 }
 ```
 
-:::tip Test Your Restores
-A backup that hasn't been tested is not a backup. Schedule regular restore tests:
+## 零停机数据库升级
+
+:::danger 仅快照回滚会丢失数据
+Btrfs 快照捕获的是时间点状态。如果数据库升级在**新数据写入后**失败，回滚到升级前的快照会**丢弃快照之后的所有写入**。对于有持续流量的生产数据库，这是不可接受的。
+:::
+
+### 问题所在
+
+```
+t0: 创建 Btrfs 快照
+t1: PostgreSQL 16→17 升级开始
+t2: 新的订单、支付、用户注册持续写入    ← 实时流量
+t3: 升级失败 — PG 17 无法启动
+t4: 回滚到 t0 快照 → t1–t3 之间的数据丢失
+```
+
+仅快照回滚在以下场景是安全的：
+- 升级期间数据库处于离线状态（计划维护窗口）
+- 快照和回滚之间没有写入发生（只读副本）
+- 数据丢失是可接受的（开发/测试环境）
+
+对于要求零停机的生产环境，请使用以下策略。
+
+### 策略一：逻辑复制（推荐）
+
+同时运行新旧版本。所有写入实时复制。零数据丢失，零停机。
+
+```mermaid
+flowchart LR
+    App[应用程序] -->|写入| Old[PG 16<br/>端口 5432<br/>主库]
+    Old -->|逻辑<br/>复制| New[PG 17<br/>端口 5433<br/>副本]
+    New -.->|验证| Health{健康检查?}
+    Health -->|通过| Switch[切换:<br/>应用 → PG 17]
+    Health -->|失败| Drop[销毁 PG 17<br/>保留 PG 16]
+```
+
+#### NixOS 配置
+
+```nix title="modules/pg-upgrade-replication.nix"
+{ config, pkgs, ... }:
+{
+  # 旧 PostgreSQL 实例（当前生产环境）
+  services.postgresql = {
+    enable = true;
+    package = pkgs.postgresql_16;
+    dataDir = "/var/lib/db/postgresql";
+    port = 5432;
+    settings = {
+      wal_level = "logical";       # 逻辑复制必需
+      max_replication_slots = 4;
+      max_wal_senders = 4;
+    };
+  };
+
+  # 新 PostgreSQL 实例（升级目标）
+  # 准备好升级时启用此服务
+  systemd.services.postgresql-new = {
+    description = "PostgreSQL 17 (upgrade target)";
+    after = [ "network.target" ];
+    serviceConfig = {
+      User = "postgres";
+      ExecStart = "${pkgs.postgresql_17}/bin/postgres -D /var/lib/db/postgresql-new -p 5433";
+      ExecStartPre = pkgs.writeShellScript "pg17-init" ''
+        if [ ! -f /var/lib/db/postgresql-new/PG_VERSION ]; then
+          ${pkgs.postgresql_17}/bin/initdb -D /var/lib/db/postgresql-new
+          echo "port = 5433" >> /var/lib/db/postgresql-new/postgresql.conf
+          echo "wal_level = logical" >> /var/lib/db/postgresql-new/postgresql.conf
+        fi
+      '';
+    };
+  };
+}
+```
+
+#### 升级步骤
 
 ```bash
-# Restore to a temporary location and verify
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== 零停机 PostgreSQL 升级 ==="
+
+# 步骤 1: 创建安全快照（双重保险）
+echo "[1/7] 创建 Btrfs 安全快照..."
+db-snapshot
+
+# 步骤 2: 启动新的 PostgreSQL 实例
+echo "[2/7] 启动 PostgreSQL 17..."
+sudo systemctl start postgresql-new
+sleep 5
+
+# 步骤 3: 将 schema 复制到 PG 17
+echo "[3/7] 复制 schema 到 PG 17..."
+sudo -u postgres pg_dump -p 5432 --schema-only | \
+  sudo -u postgres psql -p 5433
+
+# 步骤 4: 设置逻辑复制
+echo "[4/7] 设置逻辑复制..."
+sudo -u postgres psql -p 5432 -c \
+  "CREATE PUBLICATION upgrade_pub FOR ALL TABLES;"
+
+sudo -u postgres psql -p 5433 -c \
+  "CREATE SUBSCRIPTION upgrade_sub
+   CONNECTION 'host=/run/postgresql port=5432 dbname=postgres'
+   PUBLICATION upgrade_pub;"
+
+# 步骤 5: 等待初始同步完成
+echo "[5/7] 等待初始数据同步..."
+while true; do
+  STATE=$(sudo -u postgres psql -p 5433 -t -c \
+    "SELECT srsubstate FROM pg_subscription_rel LIMIT 1;" | tr -d ' ')
+  [ "$STATE" = "r" ] && break  # 'r' = ready（已同步）
+  echo "  同步中... (状态: $STATE)"
+  sleep 5
+done
+echo "  初始同步完成。"
+
+# 步骤 6: 验证数据一致性
+echo "[6/7] 验证行数..."
+OLD_COUNT=$(sudo -u postgres psql -p 5432 -t -c \
+  "SELECT sum(n_live_tup) FROM pg_stat_user_tables;")
+NEW_COUNT=$(sudo -u postgres psql -p 5433 -t -c \
+  "SELECT sum(n_live_tup) FROM pg_stat_user_tables;")
+echo "  PG 16 行数: $OLD_COUNT"
+echo "  PG 17 行数: $NEW_COUNT"
+
+# 步骤 7: 切换（更新应用连接）
+echo "[7/7] 准备切换。"
+echo ""
+echo "完成升级："
+echo "  1. 更新应用连接到端口 5433"
+echo "  2. 验证应用健康状态"
+echo "  3. 删除订阅: psql -p 5433 -c 'DROP SUBSCRIPTION upgrade_sub;'"
+echo "  4. 删除发布: psql -p 5432 -c 'DROP PUBLICATION upgrade_pub;'"
+echo "  5. 停止旧实例: systemctl stop postgresql"
+echo ""
+echo "中止升级："
+echo "  1. 停止新实例: systemctl stop postgresql-new"
+echo "  2. 旧的 PG 16 未受影响 — 无数据丢失"
+```
+
+### 策略二：WAL 重放回滚
+
+如果必须使用快照回滚，持续归档 WAL，这样可以在恢复的快照之上**重放写入**。这能恢复快照和故障之间写入的数据。
+
+```
+t0: 创建快照（WAL 归档活跃）
+t3: 升级失败
+t4: 回滚到 t0 快照
+t5: 重放 t0 → t3 的 WAL   ← 恢复快照后的写入
+t6: 数据库恢复到 t3 状态，所有数据完整
+```
+
+#### NixOS 配置
+
+WAL 归档已在[上面的 PostgreSQL 配置](#nixos-postgresql-configuration)中配置。关键设置：
+
+```nix
+settings = {
+  wal_level = "replica";
+  archive_mode = "on";
+  archive_command = "cp %p /var/lib/db/wal-archive/%f";
+};
+```
+
+#### 带 WAL 重放的恢复
+
+```bash title="db-restore-with-wal"
+#!/usr/bin/env bash
+set -euo pipefail
+
+SNAP_PATH="${1:?用法: db-restore-with-wal <snapshot-path>}"
+
+echo "=== 带 WAL 重放的数据库恢复 ==="
+
+# 步骤 1: 停止 PostgreSQL
+echo "[1/5] 停止 PostgreSQL..."
+sudo systemctl stop postgresql
+
+# 步骤 2: 保留 WAL 归档，移动当前数据
+echo "[2/5] 保留 WAL 归档并移动数据..."
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+sudo cp -a /var/lib/db/wal-archive /tmp/wal-archive-$TIMESTAMP
+sudo mv /var/lib/db /var/lib/db-old-$TIMESTAMP
+
+# 步骤 3: 从快照恢复
+echo "[3/5] 从快照恢复..."
+sudo btrfs subvolume snapshot "$SNAP_PATH" /var/lib/db
+
+# 步骤 4: 配置 WAL 重放（时间点恢复 PITR）
+echo "[4/5] 配置 PITR..."
+sudo cp -a /tmp/wal-archive-$TIMESTAMP /var/lib/db/wal-archive
+
+# 创建恢复信号文件
+sudo touch /var/lib/db/postgresql/recovery.signal
+cat <<EOF | sudo tee /var/lib/db/postgresql/postgresql.auto.conf > /dev/null
+restore_command = 'cp /var/lib/db/wal-archive/%f %p'
+recovery_target = 'immediate'
+recovery_target_action = 'promote'
+EOF
+sudo chown postgres:postgres /var/lib/db/postgresql/recovery.signal
+sudo chown postgres:postgres /var/lib/db/postgresql/postgresql.auto.conf
+
+# 步骤 5: 启动 PostgreSQL（将自动重放 WAL）
+echo "[5/5] 启动 PostgreSQL 并重放 WAL..."
+sudo systemctl start postgresql
+
+echo ""
+echo "PostgreSQL 正在重放 WAL 文件以恢复快照后的数据。"
+echo "监控进度: sudo journalctl -u postgresql -f"
+echo "旧数据已保存到: /var/lib/db-old-$TIMESTAMP"
+```
+
+### 策略三：只读副本提升
+
+升级副本而非主库。在升级验证完成之前，主库不受任何影响。
+
+```
+1. 主库（PG 16）正常服务流量
+2. 创建主库的流复制副本
+3. 提升副本，在副本上升级到 PG 17
+4. 在副本上验证 PG 17 健康状态
+5. 如果通过 → 将应用切换到副本（现在是新主库）
+6. 如果失败 → 销毁副本，主库未受影响
+```
+
+:::caution 复制延迟
+流复制存在较小的延迟（通常低于 1 秒）。在切换瞬间，可能会丢失最多该延迟窗口内的写入。对于大多数应用这是可接受的；对于金融交易，请使用逻辑复制（策略一）。
+:::
+
+### 策略选择指南
+
+| 场景 | 策略 | 数据丢失 | 停机时间 | 复杂度 |
+|---|---|---|---|---|
+| 仅配置变更（无数据风险） | 快照回滚 | 无 | 无 | 低 |
+| 小版本升级（16.1→16.2） | WAL 重放 | 无 | 秒级 | 中 |
+| 大版本升级（16→17） | 逻辑复制 | 无 | 无 | 高 |
+| 紧急回滚 | 只读副本 | 亚秒级 | 秒级 | 中 |
+| 开发/测试环境 | 快照回滚 | 可接受 | 无 | 低 |
+
+### OpenClaw 升级编排
+
+OpenClaw 根据升级类型选择合适的策略：
+
+```json
+{
+  "proposal_id": "prop-20240315-dbupgrade-001",
+  "issue": "PostgreSQL 16 → 17 upgrade available",
+  "analysis": {
+    "upgrade_type": "major_version",
+    "traffic_level": "active",
+    "data_loss_tolerance": "none"
+  },
+  "proposed_actions": [
+    {
+      "tier": 3,
+      "action": "pg-major-upgrade",
+      "strategy": "logical_replication",
+      "steps": [
+        "创建 Btrfs 安全快照",
+        "在端口 5433 初始化 PG 17 实例",
+        "设置 PG 16 → PG 17 逻辑复制",
+        "等待初始同步 + 验证行数",
+        "切换应用连接",
+        "24 小时稳定期后拆除 PG 16"
+      ],
+      "rollback": "停止 PG 17，应用保持在 PG 16",
+      "impact": "零停机，零数据丢失",
+      "risk": "high",
+      "requires_totp": true
+    }
+  ]
+}
+```
+
+:::tip 测试你的恢复流程
+没有经过测试的备份不算备份。定期安排恢复测试：
+
+```bash
+# 恢复到临时位置并验证
 sudo btrfs subvolume snapshot /.snapshots/@db-20240115-120000 /tmp/db-test
 sudo -u postgres pg_isready -h /tmp/db-test
 sudo btrfs subvolume delete /tmp/db-test
 ```
 :::
 
-## What's Next
+## 下一步
 
-Database snapshots are configured for consistency. Next, we'll put it all together in a [disaster recovery plan](./disaster-recovery) that covers every failure scenario.
+数据库快照已配置为一致性模式，零停机升级策略确保版本变更期间不会丢失数据。接下来，我们将在[灾难恢复计划](./disaster-recovery)中将所有内容整合，覆盖每种故障场景。
