@@ -15,6 +15,10 @@
     "message": "安全与恢复",
     "description": "The label for category 'Security & Recovery' in sidebar 'tutorialSidebar'"
   },
+  "sidebar.tutorialSidebar.category.Production Operations": {
+    "message": "生产运维",
+    "description": "The label for category 'Production Operations' in sidebar 'tutorialSidebar'"
+  },
   "sidebar.tutorialSidebar.doc.Interactive Demos": {
     "message": "交互式演示",
     "description": "The label for doc 'Interactive Demos' in sidebar 'tutorialSidebar'"
