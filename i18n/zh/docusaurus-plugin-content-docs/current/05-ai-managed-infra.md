@@ -3,11 +3,11 @@ sidebar_position: 7
 title: AI 管理的基础设施
 ---
 
-# AI-Managed Infrastructure
+# AI 管理的基础设施
 
-With OpenClaw installed, this chapter defines the operational model: what the AI manages autonomously, what requires human approval, and how the entire change pipeline works.
+OpenClaw 安装完成后，本章将定义其运维模型：哪些操作由 AI 自主管理、哪些需要人工审批，以及整个变更流水线如何运作。
 
-## Operational Model
+## 运维模型
 
 ```mermaid
 flowchart TB
@@ -21,48 +21,48 @@ flowchart TB
     F -->|Fail| H[Rollback]
 ```
 
-## Action Classification
+## 操作分类
 
-OpenClaw classifies every proposed action into one of three tiers:
+OpenClaw 将每个提议的操作分为三个等级：
 
-### Tier 1: Autonomous (No Approval)
+### 第一级：自主执行（无需审批）
 
-Low-risk, reversible operations that OpenClaw can execute immediately:
+低风险、可逆的操作，OpenClaw 可以立即执行：
 
-| Action | Example | Why Autonomous |
+| 操作 | 示例 | 自主执行的原因 |
 |---|---|---|
-| Log rotation | `journalctl --vacuum-size=500M` | No data loss, recoverable |
-| Temp cleanup | Remove `/tmp` files older than 7 days | Non-critical data |
-| Service restart | `systemctl restart nginx` (after failure) | Self-correcting, no config change |
-| Metric collection | Disk/CPU/memory monitoring | Read-only |
-| Certificate status | Check expiry dates | Read-only |
+| 日志轮转 | `journalctl --vacuum-size=500M` | 无数据丢失，可恢复 |
+| 临时文件清理 | 删除 `/tmp` 中超过 7 天的文件 | 非关键数据 |
+| 服务重启 | `systemctl restart nginx`（故障后） | 自我修复，不涉及配置变更 |
+| 指标采集 | 磁盘/CPU/内存监控 | 只读操作 |
+| 证书状态检查 | 检查过期日期 | 只读操作 |
 
-### Tier 2: Supervised (Notification + Auto-Apply)
+### 第二级：监督执行（通知 + 自动应用）
 
-Medium-risk operations that proceed unless a human intervenes within a window:
+中等风险的操作，在等待窗口期内如果人工未干预则自动执行：
 
-| Action | Example | Window |
+| 操作 | 示例 | 等待窗口 |
 |---|---|---|
-| Package security update | Single CVE patch | 30 minutes |
-| Swap configuration | Add swap when memory is critical | 15 minutes |
-| Firewall rate-limit | Add temporary rate limit under attack | 5 minutes |
+| 安全补丁更新 | 单个 CVE 补丁 | 30 分钟 |
+| Swap 配置 | 内存紧张时添加 swap | 15 分钟 |
+| 防火墙限速 | 遭受攻击时添加临时速率限制 | 5 分钟 |
 
-### Tier 3: Gated (TOTP Required)
+### 第三级：门控执行（需要 TOTP）
 
-High-risk operations that must be explicitly approved with a TOTP code:
+高风险操作，必须使用 TOTP 验证码进行显式审批：
 
-| Action | Example | Why Gated |
+| 操作 | 示例 | 门控原因 |
 |---|---|---|
-| `nixos-rebuild switch` | System configuration change | Could break boot |
-| `nixos-rebuild boot` | Next-boot configuration | Affects reboot |
-| Firewall rule change | Open/close ports | Security impact |
-| User management | Add/remove users | Access control |
-| Network config | IP, DNS, routing changes | Could lose connectivity |
-| Database migration | Schema changes | Data integrity |
+| `nixos-rebuild switch` | 系统配置变更 | 可能导致无法启动 |
+| `nixos-rebuild boot` | 下次启动的配置 | 影响重启 |
+| 防火墙规则变更 | 开启/关闭端口 | 安全影响 |
+| 用户管理 | 添加/删除用户 | 访问控制 |
+| 网络配置 | IP、DNS、路由变更 | 可能导致断网 |
+| 数据库迁移 | Schema 变更 | 数据完整性 |
 
-## Policy Configuration
+## 策略配置
 
-The policy engine is defined in a Nix module:
+策略引擎通过 Nix 模块定义：
 
 ```nix title="modules/openclaw-policy.nix"
 { config, pkgs, lib, ... }:
@@ -150,11 +150,11 @@ The policy engine is defined in a Nix module:
 }
 ```
 
-## Change Proposal Workflow
+## 变更提案工作流
 
-When OpenClaw detects an issue, it generates a change proposal:
+当 OpenClaw 检测到问题时，会生成一个变更提案：
 
-### Step 1: Detection
+### 步骤 1：检测
 
 ```json
 {
@@ -170,9 +170,9 @@ When OpenClaw detects an issue, it generates a change proposal:
 }
 ```
 
-### Step 2: Analysis and Proposal
+### 步骤 2：分析与提案
 
-OpenClaw's LLM analyzes the issue and generates a proposal:
+OpenClaw 的 LLM 分析问题并生成提案：
 
 ```json
 {
@@ -201,7 +201,7 @@ OpenClaw's LLM analyzes the issue and generates a proposal:
 }
 ```
 
-### Step 3: Execution
+### 步骤 3：执行
 
 ```
 Tier 1 action (rotate-logs):
@@ -221,9 +221,9 @@ Tier 3 action (nixos-rebuild-switch):
   → Change committed
 ```
 
-## Example Scenarios
+## 场景示例
 
-### Scenario 1: High Memory Usage
+### 场景 1：内存使用率过高
 
 ```
 Detection:  Memory usage at 92%, swap at 80%
@@ -239,7 +239,7 @@ Tier 3 (gated, if restart doesn't help):
   → Requires TOTP approval
 ```
 
-### Scenario 2: CVE Detected
+### 场景 2：检测到 CVE
 
 ```
 Detection:  CVE-2024-XXXX in openssl (installed version vulnerable)
@@ -254,7 +254,7 @@ Tier 2 (supervised):
   → Applied successfully
 ```
 
-### Scenario 3: Service Crash Loop
+### 场景 3：服务崩溃循环
 
 ```
 Detection:  nginx failed 3 times in 10 minutes
@@ -272,9 +272,9 @@ Tier 3 (gated):
   → nginx starts successfully
 ```
 
-## Emergency Stop
+## 紧急停止
 
-If OpenClaw is behaving unexpectedly, trigger an emergency stop:
+如果 OpenClaw 出现异常行为，可以触发紧急停止：
 
 ```bash
 # Create the stop file — OpenClaw halts all autonomous actions immediately
@@ -288,16 +288,16 @@ sudo systemctl status openclaw
 sudo rm /var/lib/openclaw/STOP
 ```
 
-:::danger When to Use Emergency Stop
-- OpenClaw is in an action loop (repeatedly restarting a service)
-- Unexpected configuration changes are being proposed
-- You need to investigate OpenClaw's behavior without interference
-- During manual maintenance windows
+:::danger 何时使用紧急停止
+- OpenClaw 陷入操作循环（反复重启某个服务）
+- 出现意料之外的配置变更提案
+- 需要在不受干扰的情况下排查 OpenClaw 的行为
+- 在手动维护窗口期间
 :::
 
-## Monitoring OpenClaw
+## 监控 OpenClaw
 
-### Audit Log
+### 审计日志
 
 ```bash
 # View recent actions
@@ -313,9 +313,9 @@ sudo cat /var/log/openclaw/audit.jsonl | \
   jq 'select(.status == "failed")'
 ```
 
-### Prometheus Metrics
+### Prometheus 指标
 
-OpenClaw exposes metrics at `localhost:9101/metrics`:
+OpenClaw 在 `localhost:9101/metrics` 暴露指标：
 
 ```
 # HELP openclaw_actions_total Total actions executed
@@ -334,6 +334,6 @@ openclaw_proposals_pending 0
 openclaw_rollbacks_total 2
 ```
 
-## What's Next
+## 下一步
 
 AI 操作代理已配置好清晰的分级策略。接下来，我们将添加[上下文管理](./context-management) —— 赋予 OpenClaw 记忆能力、事件关联和从历史操作中学习的能力，实现一致且连贯的 AI 驱动运维。

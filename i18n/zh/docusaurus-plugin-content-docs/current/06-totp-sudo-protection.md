@@ -3,11 +3,11 @@ sidebar_position: 8
 title: TOTP Sudo 防护
 ---
 
-# TOTP Sudo Protection
+# TOTP Sudo 防护
 
-This chapter configures TOTP (Time-based One-Time Password) authentication for sudo, ensuring that critical operations like `nixos-rebuild switch` require a 6-digit code from an authenticator app — even if an attacker gains shell access.
+本章配置 sudo 的 TOTP（基于时间的一次性密码）认证，确保 `nixos-rebuild switch` 等关键操作需要来自身份验证器应用的 6 位验证码 —— 即使攻击者获得了 Shell 访问权限也无法绕过。
 
-## Why TOTP for Sudo
+## 为什么对 Sudo 使用 TOTP
 
 ```mermaid
 flowchart LR
@@ -15,18 +15,18 @@ flowchart LR
     A -->|with TOTP| D[sudo nixos-rebuild] --> E[TOTP prompt] -->|attacker doesn't have secret| F[BLOCKED ✓]
 ```
 
-The TOTP secret lives on your phone (or hardware token), not on the server. Even if the server is compromised, the attacker cannot generate valid codes.
+TOTP 密钥存储在你的手机（或硬件令牌）上，而非服务器上。即使服务器被入侵，攻击者也无法生成有效的验证码。
 
-## Components
+## 组件
 
-| Component | Role |
+| 组件 | 职责 |
 |---|---|
-| `pam_oath` | PAM module that validates TOTP codes |
-| `oath-toolkit` | CLI tools for generating secrets and testing codes |
-| `oathtool` | Command-line TOTP code generator (for testing) |
-| Authenticator app | Google Authenticator, Authy, or any TOTP app |
+| `pam_oath` | 验证 TOTP 验证码的 PAM 模块 |
+| `oath-toolkit` | 用于生成密钥和测试验证码的命令行工具 |
+| `oathtool` | 命令行 TOTP 验证码生成器（用于测试） |
+| 身份验证器应用 | Google Authenticator、Authy 或任何 TOTP 应用 |
 
-## PAM Authentication Flow
+## PAM 认证流程
 
 ```mermaid
 flowchart TB
@@ -37,9 +37,9 @@ flowchart TB
     E -->|all passed| F[Command executes]
 ```
 
-## NixOS Configuration
+## NixOS 配置
 
-### Install and Configure pam_oath
+### 安装和配置 pam_oath
 
 ```nix title="modules/totp-sudo.nix"
 { config, pkgs, lib, ... }:
@@ -75,12 +75,12 @@ flowchart TB
 ```
 
 :::warning window=3
-The `window=3` parameter allows codes that are up to 3 time steps (90 seconds) old or new. This accounts for clock drift between the server and your authenticator app. Don't set this too high — it weakens security.
+`window=3` 参数允许前后偏差最多 3 个时间步长（90 秒）的验证码。这是为了容忍服务器与身份验证器应用之间的时钟偏差。不要设置过大 —— 会削弱安全性。
 :::
 
-### TOTP Secret Enrollment
+### TOTP 密钥注册
 
-Generate a TOTP secret for each user that needs sudo access:
+为每个需要 sudo 权限的用户生成 TOTP 密钥：
 
 ```bash
 # Generate a random secret (base32 encoded)
@@ -97,7 +97,7 @@ sudo chmod 600 /etc/users.oath
 sudo chown root:root /etc/users.oath
 ```
 
-### Generate QR Code for Authenticator App
+### 为身份验证器应用生成二维码
 
 ```bash
 # Generate a QR code for the admin user
@@ -105,10 +105,10 @@ qrencode -t ansiutf8 \
   "otpauth://totp/nixos-server:admin?secret=JBSWY3DPEHPK3PXP4ZTLMRQK6BZDG5A&issuer=nixos-server&digits=6&period=30"
 ```
 
-This displays a QR code in your terminal. Scan it with your authenticator app (Google Authenticator, Authy, 1Password, etc.).
+终端中会显示一个二维码，用身份验证器应用（Google Authenticator、Authy、1Password 等）扫描即可。
 
-:::tip Generate Recovery Codes
-After enrolling, generate a set of emergency one-time codes and store them offline (printed or in a password manager):
+:::tip 生成恢复码
+注册完成后，生成一组紧急一次性验证码并离线存储（打印出来或存入密码管理器）：
 
 ```bash
 # Generate 10 emergency codes from the same secret
@@ -117,10 +117,10 @@ for i in $(seq 0 9); do
 done > ~/totp-emergency-codes.txt
 ```
 
-These codes won't work as TOTP (they're time-bound), so a better approach is to keep the **secret key itself** (`JBSWY3DPEHPK3PXP4ZTLMRQK6BZDG5A`) backed up securely. With the secret, you can re-enroll any authenticator app at any time.
+这些验证码作为 TOTP 是有时效性的，因此更好的做法是安全地备份**密钥本身**（`JBSWY3DPEHPK3PXP4ZTLMRQK6BZDG5A`）。有了密钥，随时可以在任何身份验证器应用中重新注册。
 :::
 
-### Test TOTP Authentication
+### 测试 TOTP 认证
 
 ```bash
 # Generate a test code using oathtool
@@ -133,9 +133,9 @@ sudo echo "TOTP works!"
 # One-time password (OATH): (6-digit code from authenticator)
 ```
 
-## Users File Format
+## 用户文件格式
 
-The `/etc/users.oath` file format:
+`/etc/users.oath` 文件格式如下：
 
 ```
 # TYPE         USER    PIN  SECRET
@@ -143,16 +143,16 @@ HOTP/T30/6     admin   -    JBSWY3DPEHPK3PXP4ZTLMRQK6BZDG5A
 HOTP/T30/6     openclaw -   KFWU4SDPN7PAQ3RPXVTZMRWK8CZDH7B
 ```
 
-| Field | Meaning |
+| 字段 | 含义 |
 |---|---|
-| `HOTP/T30/6` | TOTP mode, 30-second period, 6 digits |
-| `admin` | Unix username |
-| `-` | No additional PIN (just the TOTP code) |
-| `JBSWY3...` | Base32-encoded secret key |
+| `HOTP/T30/6` | TOTP 模式，30 秒周期，6 位数字 |
+| `admin` | Unix 用户名 |
+| `-` | 无附加 PIN（仅使用 TOTP 验证码） |
+| `JBSWY3...` | Base32 编码的密钥 |
 
-## OpenClaw TOTP Integration
+## OpenClaw TOTP 集成
 
-For OpenClaw to authenticate TOTP for gated operations, it needs a mechanism to request a code from the human operator. This is typically done via a notification channel:
+OpenClaw 需要一种机制来向人类操作员请求 TOTP 验证码，以便对门控操作进行认证。通常通过通知渠道实现：
 
 ```nix title="modules/openclaw-totp-bridge.nix"
 { config, pkgs, ... }:
@@ -209,9 +209,9 @@ in
 }
 ```
 
-## Selective TOTP Enforcement
+## 选择性 TOTP 强制
 
-You may want TOTP only for specific commands, not all sudo operations. Use PAM conditions:
+你可能只想对特定命令启用 TOTP，而非所有 sudo 操作。可以使用 PAM 条件：
 
 ```nix title="Alternative: TOTP only for specific commands"
 { config, pkgs, lib, ... }:
@@ -256,9 +256,9 @@ in
 }
 ```
 
-## Clock Synchronization
+## 时钟同步
 
-TOTP depends on synchronized clocks between server and authenticator. Ensure NTP is configured:
+TOTP 依赖服务器与身份验证器之间的时钟同步。确保已配置 NTP：
 
 ```nix
 # In configuration.nix
@@ -277,13 +277,13 @@ timedatectl status
 # Should show: System clock synchronized: yes
 ```
 
-:::danger Clock Drift Breaks TOTP
-If the server clock drifts more than 90 seconds from UTC, TOTP codes will be rejected. Always keep NTP enabled and monitor clock sync. The `window=3` setting in PAM gives a 90-second tolerance.
+:::danger 时钟偏差会导致 TOTP 失效
+如果服务器时钟与 UTC 的偏差超过 90 秒，TOTP 验证码将被拒绝。务必保持 NTP 启用并监控时钟同步。PAM 中的 `window=3` 设置提供 90 秒的容差。
 :::
 
-## Backup and Recovery
+## 备份与恢复
 
-### Backup TOTP Secrets
+### 备份 TOTP 密钥
 
 ```bash
 # Encrypt and backup the users.oath file
@@ -292,19 +292,19 @@ sudo gpg --symmetric --cipher-algo AES256 -o /root/users.oath.gpg /etc/users.oat
 # Store the GPG-encrypted backup offline (USB, password manager, etc.)
 ```
 
-### Lost TOTP Device
+### 丢失 TOTP 设备
 
-If you lose your authenticator device:
+如果丢失了身份验证器设备：
 
-1. **Boot into rescue mode** (from VPS provider console)
-2. **Mount the filesystem**: `mount /dev/sda2 /mnt -o subvol=@root`
-3. **Edit or remove the TOTP requirement**: `vim /mnt/etc/users.oath`
-4. **Reboot and re-enroll** with a new device
+1. **启动到救援模式**（通过 VPS 提供商的控制台）
+2. **挂载文件系统**：`mount /dev/sda2 /mnt -o subvol=@root`
+3. **编辑或移除 TOTP 要求**：`vim /mnt/etc/users.oath`
+4. **重启并重新注册**新设备
 
-:::tip Always Have a Backup
-Keep backup codes or a second enrolled device. Losing your only TOTP device while the server requires it means you'll need console access to recover.
+:::tip 始终保留备份
+保留备份码或注册第二台设备。如果在服务器要求 TOTP 的情况下丢失了唯一的 TOTP 设备，你将需要控制台访问权限才能恢复。
 :::
 
-## What's Next
+## 下一步
 
-Critical operations are now TOTP-protected. Next, we'll design a [database snapshot strategy](./database-snapshot-strategy) that ensures consistent backups of stateful services.
+关键操作现已受到 TOTP 保护。接下来，我们将设计[数据库快照策略](./database-snapshot-strategy)，确保有状态服务的一致性备份。

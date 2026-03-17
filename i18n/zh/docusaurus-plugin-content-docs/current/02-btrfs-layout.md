@@ -3,26 +3,26 @@ sidebar_position: 4
 title: Btrfs & 无状态化布局
 ---
 
-# Btrfs Subvolume Layout
+# Btrfs 子卷布局
 
-A well-designed subvolume layout is the foundation of a rollback-capable system. Each subvolume can be independently snapshotted, mounted with different options, and excluded from rollbacks when persistence is needed.
+精心设计的子卷布局是可回滚系统的基础。每个子卷都可以独立创建快照、使用不同的挂载选项，并在需要数据持久化时排除在回滚范围之外。
 
-## Why Btrfs for NixOS
+## 为什么选择 Btrfs
 
-| Feature | Benefit for NixOS |
+| 特性 | 对 NixOS 的价值 |
 |---|---|
-| Copy-on-write (COW) | Snapshots are instant and space-efficient |
-| Subvolumes | Independent snapshot and mount policies per directory tree |
-| Compression (zstd) | 30-50% space savings on system files |
-| Send/receive | Stream snapshots to a remote backup server |
-| Scrub | Detect and repair silent data corruption |
-| Online resize | Grow filesystem without downtime |
+| 写时复制（COW） | 快照即时生成且节省空间 |
+| 子卷 | 每个目录树可独立设置快照和挂载策略 |
+| 压缩（zstd） | 系统文件节省 30-50% 的空间 |
+| Send/receive | 将快照流式传输到远程备份服务器 |
+| Scrub | 检测并修复静默数据损坏 |
+| 在线扩容 | 无需停机即可扩展文件系统 |
 
-:::note ext4 vs Btrfs
-ext4 is battle-tested but lacks native snapshots. LVM snapshots exist but are slow and fragile under load. Btrfs snapshots are instantaneous, space-efficient (COW), and can be sent to remote hosts. For a rollback-first architecture, Btrfs is the clear choice.
+:::note ext4 与 Btrfs 对比
+ext4 久经考验，但缺少原生快照支持。LVM 快照虽然存在，但在高负载下速度慢且不稳定。Btrfs 快照是即时的、空间高效的（COW），并且可以发送到远程主机。对于「回滚优先」的架构，Btrfs 是最佳选择。
 :::
 
-## Subvolume Design
+## 子卷设计
 
 ```mermaid
 flowchart TB
@@ -36,55 +36,55 @@ flowchart TB
     end
 ```
 
-## Why This Layout
+## 为什么采用这种布局
 
-### @root (system root)
+### @root（系统根目录）
 
-Everything under `/` that isn't a separate mount. Includes:
-- `/etc` — system configuration (managed by NixOS)
-- `/var/lib` — service state (except databases)
-- `/usr` — minimal, most binaries are in `/nix`
+包含 `/` 下所有未单独挂载的内容：
+- `/etc` — 系统配置（由 NixOS 管理）
+- `/var/lib` — 服务状态（数据库除外）
+- `/usr` — 内容很少，大部分二进制文件在 `/nix` 中
 
-Rolling back `@root` restores the system to a known-good state without touching user data, logs, or databases.
+回滚 `@root` 可以将系统恢复到已知正常的状态，同时不影响用户数据、日志和数据库。
 
-### @home (user data)
+### @home（用户数据）
 
-Separated so you can:
-- Roll back the system without losing user files
-- Snapshot user data on a different schedule
-- Apply different compression/quota policies
+独立出来的好处：
+- 回滚系统时不会丢失用户文件
+- 可以按不同的时间表为用户数据创建快照
+- 可以应用不同的压缩和配额策略
 
-### @nix (Nix store)
+### @nix（Nix store）
 
 ```
 /nix/store/xxxxxxxx-package-name/
 ```
 
-Every Nix store path is addressed by its content hash. Snapshotting `/nix` is wasteful because:
-1. Store paths are immutable — they never change after creation
-2. Any store path can be rebuilt from the flake configuration
-3. The store can be large (10-50 GB) and snapshots would consume significant space
-4. Garbage collection (`nix-collect-garbage`) handles cleanup
+Nix store 中的每个路径都通过内容哈希寻址。对 `/nix` 创建快照是浪费的，因为：
+1. Store 路径是不可变的，创建后永远不会改变
+2. 任何 store 路径都可以从 flake 配置重新构建
+3. Store 可能很大（10-50 GB），快照会消耗大量空间
+4. 垃圾回收（`nix-collect-garbage`）负责清理
 
-### @log (persistent logs)
+### @log（持久化日志）
 
-Logs **must survive rollbacks**. When a bad configuration is rolled back, you need the logs from the failed state to debug what went wrong. Without this separation, rollback would delete the evidence.
+日志**必须在回滚后保留**。当错误的配置被回滚时，你需要失败状态下的日志来排查问题。如果不做分离，回滚会把证据一起删掉。
 
-### @db (databases)
+### @db（数据库）
 
-Databases need special handling:
-- Snapshots must be taken while the database is in a consistent state
-- May require `CHECKPOINT` or write-freeze before snapshot
-- Separate snapshot schedule from system (more frequent for active databases)
-- Separate rollback — you may want to roll back the system but keep current data
+数据库需要特殊处理：
+- 快照必须在数据库处于一致状态时创建
+- 可能需要在快照前执行 `CHECKPOINT` 或写冻结
+- 快照时间表独立于系统（活跃数据库需要更频繁的快照）
+- 独立回滚 — 你可能需要回滚系统但保留当前数据
 
-### @snapshots (snapshot storage)
+### @snapshots（快照存储）
 
-Snapper stores snapshots here. It must be its own subvolume to avoid the recursive problem: snapshotting `@root` would include `/.snapshots`, creating a snapshot of all your snapshots.
+Snapper 在此存储快照。它必须是独立的子卷，以避免递归问题：对 `@root` 创建快照时会包含 `/.snapshots`，导致快照中包含所有快照的副本。
 
-## Disko Implementation
+## Disko 实现
 
-This is the complete disko module that implements the layout:
+以下是实现该布局的完整 disko 模块：
 
 ```nix title="disk-config.nix"
 { lib, ... }:
@@ -171,22 +171,22 @@ This is the complete disko module that implements the layout:
 }
 ```
 
-:::warning nodatacow on @db
-The `@db` subvolume uses `nodatacow` to disable copy-on-write for database files. Databases like PostgreSQL do their own journaling — COW on top of that causes write amplification and fragmentation. Note: `nodatacow` implies `nodatasum`, so you lose Btrfs checksumming on this subvolume. The database's own integrity checks compensate for this.
+:::warning @db 上的 nodatacow
+`@db` 子卷使用 `nodatacow` 来禁用数据库文件的写时复制。像 PostgreSQL 这样的数据库有自己的日志机制，在此基础上再叠加 COW 会导致写放大和碎片化。注意：`nodatacow` 隐含 `nodatasum`，因此该子卷上的 Btrfs 校验和功能会失效，但数据库自身的完整性检查可以弥补这一点。
 :::
 
-## Mount Options Explained
+## 挂载选项说明
 
-| Option | Purpose |
+| 选项 | 用途 |
 |---|---|
-| `compress=zstd:1` | Zstandard compression level 1 — fast with good ratio (~30% savings) |
-| `noatime` | Don't update access timestamps on read — reduces write I/O significantly |
-| `space_cache=v2` | Faster free-space tracking — required for large filesystems |
-| `nodatacow` | Disable COW for database subvolume — prevents write amplification |
+| `compress=zstd:1` | Zstandard 压缩级别 1 — 速度快且压缩率不错（约 30% 空间节省） |
+| `noatime` | 读取时不更新访问时间戳 — 显著减少写 I/O |
+| `space_cache=v2` | 更快的空闲空间追踪 — 大文件系统必需 |
+| `nodatacow` | 禁用数据库子卷的 COW — 防止写放大 |
 
-### SSD Detection
+### SSD 检测
 
-If you're on an SSD or NVMe drive, add the `ssd` mount option:
+如果使用 SSD 或 NVMe 驱动器，可以添加 `ssd` 挂载选项：
 
 ```nix
 mountOptions = [
@@ -197,11 +197,11 @@ mountOptions = [
 ];
 ```
 
-Btrfs auto-detects SSDs on most systems, but being explicit doesn't hurt.
+Btrfs 在大多数系统上会自动检测 SSD，但显式指定也无妨。
 
-## Verifying the Layout
+## 验证布局
 
-After installation, verify everything is mounted correctly:
+安装完成后，验证所有挂载是否正确：
 
 ```bash
 # List all subvolumes
@@ -211,7 +211,7 @@ sudo btrfs subvolume list /
 findmnt -t btrfs
 ```
 
-Expected `findmnt` output:
+`findmnt` 的预期输出：
 
 ```
 TARGET       SOURCE           FSTYPE OPTIONS
@@ -223,15 +223,15 @@ TARGET       SOURCE           FSTYPE OPTIONS
 └─/.snapshots /dev/sda2[@snapshots] btrfs rw,noatime,space_cache=v2,subvol=/@snapshots
 ```
 
-## Checking Compression Ratio
+## 查看压缩率
 
-Install `compsize` and check how much space compression saves:
+安装 `compsize` 并查看压缩节省了多少空间：
 
 ```bash
 sudo compsize /
 ```
 
-Example output:
+示例输出：
 
 ```
 Processed 45231 files, 12847 regular extents (13102 refs), 8423 inline.
@@ -241,11 +241,11 @@ none       100%      1.4G         1.4G         1.4G
 zstd        48%      723M         1.7G         1.8G
 ```
 
-This shows zstd compression is saving about 52% on compressible files.
+可以看到 zstd 压缩在可压缩文件上节省了约 52% 的空间。
 
-## Capacity Planning
+## 容量规划
 
-Monitor disk usage per subvolume:
+按子卷监控磁盘使用情况：
 
 ```bash
 # Overall filesystem usage
@@ -256,15 +256,15 @@ sudo btrfs quota enable /
 sudo btrfs qgroup show /
 ```
 
-:::tip Set Quotas for @snapshots
-Prevent snapshots from filling the disk:
+:::tip 为 @snapshots 设置配额
+防止快照占满磁盘：
 
 ```bash
 # Limit snapshots to 20GB
 sudo btrfs qgroup limit 20G /.snapshots
 ```
 
-Or configure in NixOS:
+或在 NixOS 中配置：
 
 ```nix
 # In configuration.nix — run this as an activation script
@@ -274,6 +274,6 @@ system.activationScripts.btrfsQuota = ''
 ```
 :::
 
-## What's Next
+## 下一步
 
-The subvolume layout is ready. Next, let's configure [automatic snapshots with Snapper](./btrfs-snapshots) so every system change is protected by a restore point.
+子卷布局已就绪。接下来，让我们配置 [Snapper 自动快照](./btrfs-snapshots)，确保每次系统变更都有可恢复的还原点。

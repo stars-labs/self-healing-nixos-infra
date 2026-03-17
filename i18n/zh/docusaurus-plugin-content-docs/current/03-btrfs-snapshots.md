@@ -3,13 +3,13 @@ sidebar_position: 5
 title: Btrfs 快照与 Snapper
 ---
 
-# Btrfs Snapshots & Snapper
+# Btrfs 快照与 Snapper
 
-Snapshots are the core of the rollback strategy. This chapter covers manual snapshots, automated management with Snapper, and pre-rebuild hooks that ensure every system change has a restore point.
+快照是回滚策略的核心。本章涵盖手动快照、使用 Snapper 进行自动化管理，以及确保每次系统变更都有还原点的重建前钩子。
 
-## Snapshot Fundamentals
+## 快照基础
 
-A Btrfs snapshot is an instant, space-efficient copy of a subvolume. It uses copy-on-write — at creation time, no data is copied. Space is only consumed as files diverge between the original and the snapshot.
+Btrfs 快照是子卷的即时、空间高效的副本。它利用写时复制机制 — 创建时不复制任何数据，只有当原始子卷和快照之间的文件发生差异时才会消耗额外空间。
 
 ```mermaid
 flowchart LR
@@ -24,14 +24,14 @@ flowchart LR
     end
 ```
 
-> Only the changed blocks consume additional space.
+> 只有发生变更的数据块才会消耗额外空间。
 
-### Read-Only vs Read-Write Snapshots
+### 只读快照与读写快照
 
-| Type | Use Case |
+| 类型 | 使用场景 |
 |---|---|
-| Read-only (`-r`) | Backups, remote send/receive, archive |
-| Read-write | Rollback targets (you'll boot into them) |
+| 只读（`-r`） | 备份、远程 send/receive、归档 |
+| 读写 | 回滚目标（需要从中启动系统） |
 
 ```bash
 # Read-only snapshot (for backups)
@@ -41,9 +41,9 @@ sudo btrfs subvolume snapshot -r / /.snapshots/@root-backup
 sudo btrfs subvolume snapshot / /.snapshots/@root-rollback
 ```
 
-## Manual Snapshots
+## 手动快照
 
-Before doing anything risky, take a manual snapshot:
+在执行任何高风险操作之前，先创建手动快照：
 
 ```bash
 # Snapshot root before a change
@@ -56,11 +56,11 @@ sudo btrfs subvolume snapshot /var/lib/db /.snapshots/@db-pre-migration
 sudo btrfs subvolume list -s /
 ```
 
-## Snapper on NixOS
+## NixOS 上的 Snapper
 
-Snapper automates snapshot creation, timeline-based cleanup, and pre/post change pairs. NixOS has native Snapper integration.
+Snapper 自动化快照的创建、基于时间线的清理以及变更前后的快照配对。NixOS 原生集成了 Snapper。
 
-### NixOS Module Configuration
+### NixOS 模块配置
 
 ```nix title="configuration.nix"
 { config, pkgs, ... }:
@@ -124,7 +124,7 @@ Snapper automates snapshot creation, timeline-based cleanup, and pre/post change
 }
 ```
 
-### Verify Snapper Is Running
+### 验证 Snapper 运行状态
 
 ```bash
 # Check snapper configs
@@ -145,9 +145,9 @@ systemctl status snapper-timeline.timer
 systemctl status snapper-cleanup.timer
 ```
 
-## Pre-Rebuild Snapshot Hook
+## 重建前快照钩子
 
-The most critical snapshot happens right before `nixos-rebuild`. Create a wrapper script that ensures a snapshot is taken before every rebuild:
+最关键的快照发生在 `nixos-rebuild` 之前。创建一个包装脚本，确保每次重建前都会自动创建快照：
 
 ```nix title="modules/safe-rebuild.nix"
 { config, pkgs, lib, ... }:
@@ -216,7 +216,7 @@ in
 }
 ```
 
-Usage:
+用法：
 
 ```bash
 # Instead of: sudo nixos-rebuild switch
@@ -229,7 +229,7 @@ safe-rebuild switch --flake /etc/nixos#server
 safe-rebuild boot
 ```
 
-## Listing and Comparing Snapshots
+## 列出和比较快照
 
 ```bash
 # List all root snapshots
@@ -250,24 +250,24 @@ sudo snapper -c root status 1..2
 sudo snapper -c root diff 1..2 /etc/nixos/configuration.nix
 ```
 
-## Rollback Procedures
+## 回滚步骤
 
-### Method 1: Snapper Undochange (Online)
+### 方法一：Snapper Undochange（在线回滚）
 
-Revert files changed between two snapshots without rebooting:
+在不重启的情况下撤销两个快照之间的文件变更：
 
 ```bash
 # Undo changes made between snapshot 1 (pre) and current state
 sudo snapper -c root undochange 1..0
 ```
 
-:::warning Undochange Limitations
-`snapper undochange` replaces files individually. It works for configuration rollbacks but may not handle running services gracefully. For a clean rollback, use Method 2 or 3.
+:::warning Undochange 的局限性
+`snapper undochange` 是逐文件替换的。它适用于配置回滚，但可能无法优雅地处理正在运行的服务。如需完整回滚，请使用方法二或方法三。
 :::
 
-### Method 2: Subvolume Swap (Full Rollback)
+### 方法二：子卷替换（完整回滚）
 
-Replace the live root with a snapshot:
+用快照替换当前的根文件系统：
 
 ```bash
 # 1. Boot into a rescue system or use a snapshot as temporary root
@@ -286,9 +286,9 @@ sudo umount /mnt
 sudo reboot
 ```
 
-### Method 3: NixOS Generations (Boot-Level)
+### 方法三：NixOS 世代（引导级别）
 
-NixOS keeps previous system configurations as bootloader entries:
+NixOS 将之前的系统配置保存为引导加载器条目：
 
 ```bash
 # List available generations
@@ -301,17 +301,17 @@ sudo /nix/var/nix/profiles/system/bin/switch-to-configuration switch
 # Or simply reboot and select a previous generation from the GRUB menu
 ```
 
-:::tip Belt and Suspenders
-NixOS generations and Btrfs snapshots complement each other:
-- **NixOS generations** roll back the *system configuration* (packages, services, boot)
-- **Btrfs snapshots** roll back the *filesystem state* (data, databases, configs outside Nix management)
+:::tip 双重保险
+NixOS 世代和 Btrfs 快照相互补充：
+- **NixOS 世代**回滚的是*系统配置*（软件包、服务、引导）
+- **Btrfs 快照**回滚的是*文件系统状态*（数据、数据库、Nix 管理范围之外的配置）
 
-Use both for maximum recoverability.
+两者结合使用，可以获得最大的可恢复性。
 :::
 
-## Remote Backup with Send/Receive
+## 使用 Send/Receive 进行远程备份
 
-Stream snapshots to a remote backup server:
+将快照流式传输到远程备份服务器：
 
 ```bash
 # Create a read-only snapshot
@@ -327,7 +327,7 @@ sudo btrfs send -p /.snapshots/@root-backup-20240115 \
   ssh backup-server "sudo btrfs receive /backups/server1/"
 ```
 
-### Automated Backup Script
+### 自动备份脚本
 
 ```nix title="modules/btrfs-backup.nix"
 { config, pkgs, ... }:
@@ -382,9 +382,9 @@ in
 }
 ```
 
-## Monitoring Snapshot Space
+## 监控快照空间
 
-Snapshots can consume significant space if not cleaned up. Monitor usage:
+如果不及时清理，快照可能消耗大量空间。监控使用情况：
 
 ```bash
 # Check overall filesystem usage
@@ -397,8 +397,8 @@ sudo btrfs filesystem du -s /.snapshots/
 sudo btrfs qgroup show -reF /
 ```
 
-:::danger Don't Let Snapshots Fill the Disk
-A full Btrfs filesystem can become unmountable. Set up monitoring:
+:::danger 不要让快照占满磁盘
+Btrfs 文件系统满了之后可能无法挂载。请设置监控：
 
 ```bash
 # Simple check script — alert if usage exceeds 85%
@@ -409,9 +409,9 @@ if [ "$USAGE" -gt 85 ]; then
 fi
 ```
 
-The snapper cleanup policies from the NixOS config automatically delete old timeline snapshots, but always monitor.
+NixOS 配置中的 Snapper 清理策略会自动删除旧的时间线快照，但仍需保持监控。
 :::
 
-## What's Next
+## 下一步
 
-Snapshots are configured and automated. Next, we'll install [OpenClaw](./install-openclaw), the AI operator that will use these snapshots as a safety net while managing infrastructure changes.
+快照已配置完毕并实现自动化。接下来，我们将安装 [OpenClaw](./install-openclaw)，它是 AI 运维代理，将利用这些快照作为安全网来管理基础设施变更。

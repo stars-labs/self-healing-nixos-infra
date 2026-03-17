@@ -3,32 +3,32 @@ sidebar_position: 10
 title: 灾难恢复
 ---
 
-# Disaster Recovery
+# 灾难恢复
 
-This chapter is the runbook. It covers every major failure scenario, the detection method, and step-by-step recovery procedures. Print this page and keep it accessible — you'll need it when things go wrong.
+本章是操作手册。涵盖每种主要故障场景、检测方法和逐步恢复流程。建议打印本页并放在随手可取之处 -- 出问题时你会用到它。
 
-## Recovery Matrix
+## 恢复矩阵
 
-| Scenario | RTO | RPO | Method |
+| 场景 | RTO | RPO | 方法 |
 |---|---|---|---|
-| Bad nixos-rebuild (services broken) | 2 min | 0 | Snapper rollback or NixOS generation |
-| Bad nixos-rebuild (won't boot) | 5 min | 0 | GRUB previous generation |
-| Database corruption | 10 min | Up to 6 hours | Btrfs snapshot restore |
-| Accidental file deletion | 2 min | Up to 1 hour | Snapper undochange |
-| Full disk failure | 30 min | Up to 24 hours | Remote backup restore |
-| Compromised server | 1 hour | Variable | Clean reinstall from flake |
-| Lost TOTP device | 15 min | 0 | Console access recovery |
+| nixos-rebuild 出错（服务异常） | 2 分钟 | 0 | Snapper 回滚或 NixOS 代际切换 |
+| nixos-rebuild 出错（无法启动） | 5 分钟 | 0 | GRUB 选择上一代配置 |
+| 数据库损坏 | 10 分钟 | 最多 6 小时 | Btrfs 快照恢复 |
+| 误删文件 | 2 分钟 | 最多 1 小时 | Snapper undochange |
+| 整盘故障 | 30 分钟 | 最多 24 小时 | 远程备份恢复 |
+| 服务器被入侵 | 1 小时 | 视情况而定 | 从 flake 全新安装 |
+| TOTP 设备丢失 | 15 分钟 | 0 | 控制台访问恢复 |
 
-:::note RTO and RPO
-**RTO** (Recovery Time Objective) — how long recovery takes.
-**RPO** (Recovery Point Objective) — maximum data loss window.
+:::note RTO 和 RPO
+**RTO**（恢复时间目标）-- 恢复所需时间。
+**RPO**（恢复点目标）-- 最大数据丢失窗口。
 :::
 
-## Scenario 1: Bad nixos-rebuild (Services Broken)
+## 场景一：nixos-rebuild 出错（服务异常）
 
-**Symptoms**: Services crash, application errors, networking issues after a rebuild.
+**症状**：重建后服务崩溃、应用报错、网络异常。
 
-**Detection**:
+**检测**：
 ```bash
 # Check for failed services
 systemctl --failed
@@ -37,7 +37,7 @@ systemctl --failed
 journalctl -u nixos-rebuild --since "1 hour ago"
 ```
 
-**Recovery Option A — Snapper Rollback**:
+**恢复方案 A -- Snapper 回滚**：
 ```bash
 # List recent snapshots (find the pre-rebuild snapshot)
 sudo snapper -c root list
@@ -55,7 +55,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart nginx postgresql
 ```
 
-**Recovery Option B — NixOS Generation Rollback**:
+**恢复方案 B -- NixOS 代际回滚**：
 ```bash
 # List generations
 sudo nix-env --list-generations -p /nix/var/nix/profiles/system
@@ -65,16 +65,16 @@ sudo nix-env --switch-generation 41 -p /nix/var/nix/profiles/system
 sudo /nix/var/nix/profiles/system/bin/switch-to-configuration switch
 ```
 
-## Scenario 2: Bad nixos-rebuild (Won't Boot)
+## 场景二：nixos-rebuild 出错（无法启动）
 
-**Symptoms**: Server doesn't come back after `nixos-rebuild boot` + reboot.
+**症状**：执行 `nixos-rebuild boot` 并重启后服务器无法启动。
 
-**Recovery**:
+**恢复步骤**：
 
-1. Access the server console via your VPS provider's web console or KVM
-2. At the GRUB menu, select a previous NixOS generation (listed as "NixOS - Configuration XX")
-3. The system boots into the known-good generation
-4. Fix the configuration:
+1. 通过 VPS 提供商的 Web 控制台或 KVM 访问服务器
+2. 在 GRUB 菜单中选择之前的 NixOS 代际配置（显示为「NixOS - Configuration XX」）
+3. 系统将从已知可用的代际启动
+4. 修复配置：
 
 ```bash
 # Check what's different in the current (broken) generation
@@ -87,22 +87,22 @@ vim /etc/nixos/configuration.nix
 safe-rebuild switch
 ```
 
-:::tip Always Keep 3+ Generations
-Ensure your bootloader keeps multiple generations:
+:::tip 始终保留 3 个以上的代际配置
+确保引导加载器保留多个代际：
 
 ```nix
 # In configuration.nix
 boot.loader.systemd-boot.configurationLimit = 10;
 ```
 
-This keeps the last 10 generations in the boot menu.
+这会在启动菜单中保留最近 10 个代际配置。
 :::
 
-## Scenario 3: Database Corruption
+## 场景三：数据库损坏
 
-**Symptoms**: Application errors, PostgreSQL won't start, data inconsistency.
+**症状**：应用报错、PostgreSQL 无法启动、数据不一致。
 
-**Detection**:
+**检测**：
 ```bash
 # Check PostgreSQL status
 sudo systemctl status postgresql
@@ -112,7 +112,7 @@ sudo journalctl -u postgresql --since "1 hour ago"
 sudo -u postgres psql -c "SELECT 1;"
 ```
 
-**Recovery**:
+**恢复**：
 ```bash
 # List database snapshots
 ls -la /.snapshots/@db-*
@@ -136,7 +136,7 @@ sudo systemctl start postgresql
 sudo -u postgres psql -c "SELECT count(*) FROM pg_stat_user_tables;"
 ```
 
-**After recovery**:
+**恢复后操作**：
 ```bash
 # Check for any WAL files that can be replayed for point-in-time recovery
 ls -la /var/lib/db/wal-archive/
@@ -145,11 +145,11 @@ ls -la /var/lib/db/wal-archive/
 sudo -u postgres pg_resetwal /var/lib/db/postgresql
 ```
 
-## Scenario 4: Accidental File Deletion
+## 场景四：误删文件
 
-**Symptoms**: Missing files, broken configs, deleted user data.
+**症状**：文件缺失、配置损坏、用户数据被删除。
 
-**Recovery**:
+**恢复**：
 ```bash
 # Find the file in a recent snapshot
 sudo snapper -c root list
@@ -164,13 +164,13 @@ sudo cp /.snapshots/5/snapshot/path/to/deleted/file /path/to/deleted/file
 sudo cp -a /.snapshots/5/snapshot/etc/nginx/ /etc/nginx/
 ```
 
-## Scenario 5: Full Disk Failure
+## 场景五：整盘故障
 
-**Symptoms**: I/O errors, filesystem read-only, server unresponsive.
+**症状**：I/O 错误、文件系统变为只读、服务器无响应。
 
-**Prerequisites**: You have remote backups via `btrfs send/receive` (configured in [Chapter 3](./btrfs-snapshots)).
+**前提条件**：你已通过 `btrfs send/receive` 配置了远程备份（参见[第三章](./btrfs-snapshots)）。
 
-**Recovery**:
+**恢复**：
 
 ```bash
 # On the NEW replacement server:
@@ -206,11 +206,11 @@ sudo umount /mnt
 sudo reboot
 ```
 
-## Scenario 6: Compromised Server
+## 场景六：服务器被入侵
 
-**Symptoms**: Suspicious processes, unauthorized users, modified binaries, unexpected network connections.
+**症状**：可疑进程、未授权用户、被篡改的二进制文件、异常网络连接。
 
-**Response**:
+**应对措施**：
 
 ```bash
 # IMMEDIATE: Isolate the server
@@ -241,19 +241,19 @@ ssh backup-server "sudo btrfs send /backups/server1/@db-backup-KNOWN_GOOD" | \
 # - OpenClaw API key
 ```
 
-:::danger Do Not Trust the Compromised System
-After a compromise, reinstall from your flake — do not try to "clean" the existing system. NixOS makes this practical because the entire system state is defined in code. Only restore **data** from backups, not system files.
+:::danger 不要信任被入侵的系统
+入侵发生后，应从你的 flake 重新安装 -- 不要试图「清理」现有系统。NixOS 的声明式特性使这变得可行，因为整个系统状态都定义在代码中。只从备份恢复**数据**，不恢复系统文件。
 :::
 
-## Scenario 7: Lost TOTP Device
+## 场景七：TOTP 设备丢失
 
-**Symptoms**: Cannot authenticate sudo, locked out of administrative commands.
+**症状**：无法通过 sudo 认证，被锁定在管理命令之外。
 
-**Recovery**:
+**恢复步骤**：
 
-1. Access the server console via VPS provider (web console / KVM / IPMI)
-2. Boot into a rescue system or single-user mode
-3. Mount and edit the TOTP configuration:
+1. 通过 VPS 提供商的控制台访问服务器（Web 控制台 / KVM / IPMI）
+2. 进入救援系统或单用户模式
+3. 挂载并编辑 TOTP 配置：
 
 ```bash
 # Mount the root filesystem
@@ -274,53 +274,53 @@ umount /mnt
 reboot
 ```
 
-4. After reboot, enroll the new TOTP secret on your new device
-5. Rebuild NixOS to restore the proper PAM configuration
+4. 重启后，在新设备上注册新的 TOTP 密钥
+5. 重建 NixOS 以恢复正确的 PAM 配置
 
-## Recovery Checklist
+## 恢复后检查清单
 
-Use this checklist after any recovery:
+每次恢复后使用此清单进行验证：
 
 ```
-□ System boots and all services are running
-  systemctl --failed  (should show 0 units)
+□ 系统启动且所有服务运行正常
+  systemctl --failed  (应显示 0 个单元)
 
-□ Data integrity verified
+□ 数据完整性已验证
   sudo -u postgres psql -c "SELECT count(*) FROM critical_table;"
 
-□ Snapshots are being taken again
-  sudo snapper -c root list  (verify recent timeline entries)
+□ 快照正在正常创建
+  sudo snapper -c root list  (确认有最近的时间线条目)
 
-□ OpenClaw is operational
+□ OpenClaw 运行正常
   sudo systemctl status openclaw
 
-□ TOTP authentication works
-  sudo echo "test"  (should prompt for TOTP)
+□ TOTP 认证正常工作
+  sudo echo "test"  (应提示输入 TOTP)
 
-□ Remote backups resumed
-  Check backup timer: systemctl status btrfs-backup.timer
+□ 远程备份已恢复
+  检查备份定时器: systemctl status btrfs-backup.timer
 
-□ Monitoring and alerting is active
-  Check metrics endpoint: curl localhost:9101/metrics
+□ 监控和告警正常运行
+  检查指标端点: curl localhost:9101/metrics
 
-□ Root cause documented
-  What happened, why, how it was fixed, how to prevent recurrence
+□ 根因已记录
+  发生了什么、为什么、如何修复、如何防止再次发生
 ```
 
-## Backup Verification Schedule
+## 备份验证计划
 
-| Check | Frequency | Method |
+| 检查项 | 频率 | 方法 |
 |---|---|---|
-| Snapper is creating snapshots | Daily | `snapper -c root list \| tail -5` |
-| Remote backup is running | Daily | `systemctl status btrfs-backup.timer` |
-| Backup can be restored | Monthly | Test restore to temporary subvolume |
-| Full disaster recovery | Quarterly | Restore to a test server from backup |
-| TOTP recovery path works | Quarterly | Test console access + TOTP reset |
+| Snapper 正在创建快照 | 每日 | `snapper -c root list \| tail -5` |
+| 远程备份正在运行 | 每日 | `systemctl status btrfs-backup.timer` |
+| 备份可以成功恢复 | 每月 | 测试恢复到临时子卷 |
+| 完整灾难恢复 | 每季度 | 从备份恢复到测试服务器 |
+| TOTP 恢复路径可用 | 每季度 | 测试控制台访问 + TOTP 重置 |
 
-:::warning Test Your Runbook
-An untested disaster recovery plan is just documentation. Schedule quarterly DR drills where you actually restore from backup to a test server. Update this runbook with any issues found during drills.
+:::warning 测试你的操作手册
+未经测试的灾难恢复计划只是文档。定期安排季度 DR 演练，实际从备份恢复到测试服务器。根据演练中发现的问题更新本手册。
 :::
 
-## What's Next
+## 下一步
 
-We've covered recovery for every failure mode. The final chapter brings it all together with [AI safety and rollback workflows](./ai-safety-and-rollback) — the operating procedures for day-to-day AI-managed infrastructure.
+我们已经覆盖了所有故障模式的恢复方案。最后一章将通过 [AI 安全与回滚工作流](./ai-safety-and-rollback)将所有内容整合 -- 这是日常 AI 管理基础设施的操作规程。

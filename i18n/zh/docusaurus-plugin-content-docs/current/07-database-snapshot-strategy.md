@@ -3,38 +3,38 @@ sidebar_position: 9
 title: 数据库快照策略
 ---
 
-# Database Snapshot Strategy
+# 数据库快照策略
 
-Databases require special snapshot handling. A naive filesystem snapshot of a running database can capture an inconsistent state — half-written transactions, dirty buffers, incomplete WAL entries. This chapter covers strategies for consistent database snapshots on Btrfs.
+数据库需要特殊的快照处理方式。对运行中的数据库直接做文件系统快照，可能会捕获到不一致的状态 -- 写到一半的事务、脏缓冲区、不完整的 WAL 条目。本章介绍在 Btrfs 上创建一致性数据库快照的策略。
 
-## The Consistency Problem
+## 一致性问题
 
 ```mermaid
 flowchart LR
-    subgraph Without["Without coordination"]
-        A[PostgreSQL<br/>Write TX 1] -->|captured| B[Btrfs Snapshot<br/>TX 1 OK]
-        C[PostgreSQL<br/>Write TX 2 in progress] -.->|half captured| D[Btrfs Snapshot<br/>TX 2 corrupt]
+    subgraph Without["无协调"]
+        A[PostgreSQL<br/>写入事务 1] -->|已捕获| B[Btrfs 快照<br/>事务 1 正常]
+        C[PostgreSQL<br/>事务 2 进行中] -.->|部分捕获| D[Btrfs 快照<br/>事务 2 损坏]
     end
-    
-    subgraph With["With coordination"]
-        E[PostgreSQL<br/>CHECKPOINT] -->|flush to disk| F[Btrfs Snapshot]
-        E -->|mark backup| F
-        F -->|snapshot taken| G[Consistent snapshot]
+
+    subgraph With["有协调"]
+        E[PostgreSQL<br/>CHECKPOINT] -->|刷盘| F[Btrfs 快照]
+        E -->|标记备份| F
+        F -->|快照完成| G[一致性快照]
     end
 ```
 
-## Strategy Overview
+## 策略概览
 
-| Database | Snapshot Method |
+| 数据库 | 快照方法 |
 |---|---|
-| PostgreSQL | `CHECKPOINT` + `pg_backup_start()` + Btrfs snapshot + `pg_backup_stop()` |
-| SQLite | `PRAGMA wal_checkpoint(TRUNCATE)` + Btrfs snapshot |
-| Redis | `BGSAVE` + wait + Btrfs snapshot |
-| MySQL/MariaDB | `FLUSH TABLES WITH READ LOCK` + Btrfs snapshot + `UNLOCK TABLES` |
+| PostgreSQL | `CHECKPOINT` + `pg_backup_start()` + Btrfs 快照 + `pg_backup_stop()` |
+| SQLite | `PRAGMA wal_checkpoint(TRUNCATE)` + Btrfs 快照 |
+| Redis | `BGSAVE` + 等待完成 + Btrfs 快照 |
+| MySQL/MariaDB | `FLUSH TABLES WITH READ LOCK` + Btrfs 快照 + `UNLOCK TABLES` |
 
-## PostgreSQL Consistent Snapshots
+## PostgreSQL 一致性快照
 
-### NixOS PostgreSQL Configuration
+### NixOS PostgreSQL 配置
 
 ```nix title="modules/postgresql.nix"
 { config, pkgs, ... }:
@@ -43,7 +43,7 @@ flowchart LR
     enable = true;
     package = pkgs.postgresql_16;
 
-    # Store data on the @db subvolume
+    # 将数据存储在 @db 子卷上
     dataDir = "/var/lib/db/postgresql";
 
     settings = {
@@ -65,7 +65,7 @@ flowchart LR
 }
 ```
 
-### Consistent Snapshot Script
+### 一致性快照脚本
 
 ```nix title="modules/db-snapshot.nix"
 { config, pkgs, ... }:
@@ -158,9 +158,9 @@ in
 }
 ```
 
-## Automated Database Snapshots
+## 自动化数据库快照
 
-Schedule regular consistent snapshots:
+定期调度一致性快照：
 
 ```nix title="modules/db-snapshot-timer.nix"
 { config, pkgs, ... }:
@@ -186,9 +186,9 @@ Schedule regular consistent snapshots:
 }
 ```
 
-## SQLite Snapshot Strategy
+## SQLite 快照策略
 
-SQLite is simpler — checkpoint the WAL and snapshot:
+SQLite 更简单 -- 执行 WAL checkpoint 后即可做快照：
 
 ```bash
 #!/usr/bin/env bash
@@ -206,7 +206,7 @@ sudo btrfs subvolume snapshot -r /var/lib/db "/.snapshots/@db-sqlite-$TIMESTAMP"
 echo "SQLite snapshot created: /.snapshots/@db-sqlite-$TIMESTAMP"
 ```
 
-## Redis Snapshot Strategy
+## Redis 快照策略
 
 ```bash
 #!/usr/bin/env bash
@@ -231,22 +231,22 @@ sudo btrfs subvolume snapshot -r /var/lib/db "/.snapshots/@db-redis-$TIMESTAMP"
 echo "Redis snapshot created: /.snapshots/@db-redis-$TIMESTAMP"
 ```
 
-## Snapshot Retention for Databases
+## 数据库快照保留策略
 
-Database snapshots consume more space than system snapshots due to data churn. Configure aggressive cleanup:
+由于数据变动频繁，数据库快照比系统快照占用更多空间。建议配置积极的清理策略：
 
 ```
-Timeline:
-  ├── Last 48 hours:  hourly snapshots  (48 snapshots)
-  ├── Last 2 weeks:   daily snapshots   (14 snapshots)
-  ├── Last 2 months:  weekly snapshots  (8 snapshots)
-  └── Last 6 months:  monthly snapshots (6 snapshots)
+时间线:
+  ├── 最近 48 小时:  每小时快照  (48 个快照)
+  ├── 最近 2 周:     每日快照    (14 个快照)
+  ├── 最近 2 个月:   每周快照    (8 个快照)
+  └── 最近 6 个月:   每月快照    (6 个快照)
 
-Total retained: ~76 snapshots
-Estimated space: 2-5x the database size (depends on churn)
+总保留: ~76 个快照
+预估空间: 数据库大小的 2-5 倍（取决于数据变动量）
 ```
 
-## Monitoring
+## 监控
 
 ```bash
 # Check database snapshot sizes
@@ -263,9 +263,9 @@ if [ "$DB_SNAP_GB" -gt 50 ]; then
 fi
 ```
 
-## OpenClaw Integration
+## OpenClaw 集成
 
-OpenClaw can manage database snapshots as part of its monitoring:
+OpenClaw 可以在监控过程中管理数据库快照：
 
 ```json
 {
@@ -438,7 +438,7 @@ t6: 数据库恢复到 t3 状态，所有数据完整
 
 #### NixOS 配置
 
-WAL 归档已在[上面的 PostgreSQL 配置](#nixos-postgresql-configuration)中配置。关键设置：
+WAL 归档已在[上面的 PostgreSQL 配置](#nixos-postgresql-配置)中配置。关键设置：
 
 ```nix
 settings = {

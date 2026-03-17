@@ -3,37 +3,37 @@ sidebar_position: 11
 title: AI 安全与回滚
 ---
 
-# AI Safety & Rollback
+# AI 安全与回滚
 
-This final chapter defines the operating procedures for running AI-managed infrastructure safely. It covers guardrails, rollback workflows, failure budgets, and the principles that keep humans in control while benefiting from AI automation.
+本章定义了安全运行 AI 管理基础设施的操作规程。涵盖安全护栏、回滚工作流、故障预算，以及在享受 AI 自动化优势的同时保持人类控制权的核心原则。
 
-## The Safety Model
+## 安全模型
 
 ```mermaid
 block-beta
     columns 1
-    block:L5["Layer 5: Human Oversight"]
-        L5A["TOTP approval for destructive ops • Emergency stop file • Audit log review"]
+    block:L5["第五层：人工监督"]
+        L5A["TOTP 审批破坏性操作 • 紧急停止文件 • 审计日志审查"]
     end
-    block:L4["Layer 4: Policy Engine"]
-        L4A["Tier classification (autonomous/supervised/gated) • Rate limits • Action whitelist"]
+    block:L4["第四层：策略引擎"]
+        L4A["层级分类（自主/监督/审批） • 速率限制 • 操作白名单"]
     end
-    block:L3["Layer 3: Pre-Change Snapshots"]
-        L3A["Auto Btrfs snapshot before every change • Tagged with proposal ID • Auto rollback on failure"]
+    block:L3["第三层：变更前快照"]
+        L3A["每次变更前自动 Btrfs 快照 • 标记提案 ID • 失败自动回滚"]
     end
-    block:L2["Layer 2: NixOS Guarantees"]
-        L2A["Atomic system activation • Previous generations in GRUB • Declarative, no hidden state"]
+    block:L2["第二层：NixOS 保障"]
+        L2A["原子化系统激活 • GRUB 中保留历史代际 • 声明式，无隐藏状态"]
     end
-    block:L1["Layer 1: Filesystem Safety"]
-        L1A["Btrfs COW preserves original data • Checksums detect corruption • Subvolume isolation limits blast radius"]
+    block:L1["第一层：文件系统安全"]
+        L1A["Btrfs COW 保留原始数据 • 校验和检测损坏 • 子卷隔离限制爆炸半径"]
     end
 ```
 
-## AI Guardrails
+## AI 安全护栏
 
-### 1. Action Whitelist
+### 1. 操作白名单
 
-OpenClaw can only perform actions explicitly listed in the policy. Anything not whitelisted is denied by default:
+OpenClaw 只能执行策略中明确列出的操作。未列入白名单的操作一律拒绝：
 
 ```nix
 # Only these actions are allowed — everything else is blocked
@@ -46,13 +46,13 @@ services.openclaw.settings.policy.autonomous.allowedActions = [
 ];
 ```
 
-:::tip Default Deny
-The policy engine operates on a default-deny model. If an action isn't in the whitelist, OpenClaw cannot execute it — even if the LLM recommends it. This is a fundamental safety property.
+:::tip 默认拒绝
+策略引擎采用默认拒绝模型。如果某个操作不在白名单中，OpenClaw 无法执行它 -- 即使 LLM 推荐了该操作。这是一项根本性的安全特性。
 :::
 
-### 2. Rate Limiting
+### 2. 速率限制
 
-Prevent runaway automation:
+防止自动化失控：
 
 ```nix
 services.openclaw.settings.policy.safety = {
@@ -63,26 +63,26 @@ services.openclaw.settings.policy.safety = {
 };
 ```
 
-### 3. Blast Radius Containment
+### 3. 爆炸半径控制
 
-Each action has a defined scope. OpenClaw cannot combine multiple actions into a single operation:
+每个操作都有明确的作用范围。OpenClaw 不能将多个操作合并为单一操作执行：
 
 ```
-ALLOWED:
-  - Restart nginx (single service, defined scope)
-  - Update one package (targeted change)
-  - Add a firewall rule (specific modification)
+允许:
+  - 重启 nginx（单一服务，明确范围）
+  - 更新一个软件包（定向变更）
+  - 添加一条防火墙规则（特定修改）
 
-NOT ALLOWED:
-  - Restart all services at once
-  - Run arbitrary shell commands
-  - Modify multiple config files in one action
-  - Chain actions without individual approval
+不允许:
+  - 同时重启所有服务
+  - 执行任意 shell 命令
+  - 在一次操作中修改多个配置文件
+  - 未经逐一审批就链式执行操作
 ```
 
-### 4. Rollback Budget
+### 4. 回滚预算
 
-Define how many rollbacks are acceptable before OpenClaw is automatically suspended:
+定义在 OpenClaw 被自动暂停之前允许的回滚次数：
 
 ```nix
 services.openclaw.settings.policy.safety = {
@@ -95,57 +95,57 @@ services.openclaw.settings.policy.safety = {
 };
 ```
 
-## The Rollback Workflow
+## 回滚工作流
 
-Every AI-initiated change follows this sequence:
+每个 AI 发起的变更都遵循以下流程：
 
 ```
-Step 1: PROPOSE
-  OpenClaw generates a change proposal
-  ├── Nix configuration diff
-  ├── Impact assessment
-  ├── Risk classification
-  └── Rollback plan
+步骤 1: 提议
+  OpenClaw 生成变更提案
+  ├── Nix 配置差异
+  ├── 影响评估
+  ├── 风险分类
+  └── 回滚方案
 
-Step 2: APPROVE (if Tier 2 or 3)
-  ├── Tier 2: Notification + countdown timer
-  └── Tier 3: TOTP code required
+步骤 2: 审批（Tier 2 或 Tier 3 时）
+  ├── Tier 2: 通知 + 倒计时
+  └── Tier 3: 需要 TOTP 验证码
 
-Step 3: SNAPSHOT
-  Btrfs snapshots taken:
+步骤 3: 快照
+  创建 Btrfs 快照:
   ├── snapper -c root create --type pre
-  ├── snapper -c db create --type pre  (if DB affected)
-  └── Snapshot IDs recorded in proposal
+  ├── snapper -c db create --type pre  (如影响数据库)
+  └── 快照 ID 记录在提案中
 
-Step 4: APPLY
-  safe-rebuild switch (or targeted action)
-  ├── NixOS builds new configuration
-  ├── Activates new system profile
-  └── Records exit code
+步骤 4: 应用
+  safe-rebuild switch（或定向操作）
+  ├── NixOS 构建新配置
+  ├── 激活新系统配置
+  └── 记录退出码
 
-Step 5: VERIFY
-  Health checks run:
-  ├── All systemd services healthy?
-  ├── Network connectivity OK?
-  ├── Application endpoints responding?
-  ├── Database accepting connections?
-  └── Custom health checks passing?
+步骤 5: 验证
+  运行健康检查:
+  ├── 所有 systemd 服务是否正常？
+  ├── 网络连通性是否正常？
+  ├── 应用端点是否响应？
+  ├── 数据库是否接受连接？
+  └── 自定义健康检查是否通过？
 
-Step 6a: COMMIT (if healthy)
-  ├── Post-snapshot created (snapper --type post)
-  ├── Audit log updated (status: success)
-  └── Proposal marked complete
+步骤 6a: 提交（如果健康）
+  ├── 创建后快照 (snapper --type post)
+  ├── 更新审计日志 (status: success)
+  └── 标记提案为已完成
 
-Step 6b: ROLLBACK (if unhealthy)
+步骤 6b: 回滚（如果异常）
   ├── snapper -c root undochange $PRE_SNAP..0
-  ├── snapper -c db undochange $DB_SNAP..0  (if DB affected)
-  ├── Services restarted
-  ├── Health check re-run to confirm recovery
-  ├── Audit log updated (status: rolled-back)
-  └── Alert sent to operator
+  ├── snapper -c db undochange $DB_SNAP..0  (如影响数据库)
+  ├── 重启服务
+  ├── 重新运行健康检查确认恢复
+  ├── 更新审计日志 (status: rolled-back)
+  └── 向运维人员发送告警
 ```
 
-### Rollback Implementation
+### 回滚实现
 
 ```nix title="modules/auto-rollback.nix"
 { config, pkgs, ... }:
@@ -244,167 +244,167 @@ in
 }
 ```
 
-## Operating Procedures
+## 运维规程
 
-### Daily Operations
+### 每日运维
 
 ```
-Morning Review (5 minutes):
-  1. Check OpenClaw audit log for overnight actions
+晨检（5 分钟）:
+  1. 查看 OpenClaw 审计日志中的隔夜操作
      $ sudo tail -50 /var/log/openclaw/audit.jsonl | jq -r '.timestamp + " " + .action + " " + .status'
 
-  2. Review any pending Tier 2 proposals
+  2. 审查待处理的 Tier 2 提案
      $ sudo openclaw pending-proposals
 
-  3. Verify snapshot health
+  3. 验证快照健康状态
      $ sudo snapper -c root list | tail -10
      $ sudo snapper -c db list | tail -10
 
-  4. Check disk usage
+  4. 检查磁盘使用情况
      $ sudo btrfs filesystem usage /
 ```
 
-### Weekly Operations
+### 每周运维
 
 ```
-Weekly Review (30 minutes):
-  1. Review full audit log for patterns
-     - Are certain actions failing repeatedly?
-     - Is OpenClaw making too many/too few changes?
-     - Any suspicious proposals from the LLM?
+周检（30 分钟）:
+  1. 审查完整审计日志，寻找模式
+     - 是否有某些操作反复失败？
+     - OpenClaw 的变更频率是否过高/过低？
+     - LLM 是否有可疑的提案？
 
-  2. Test a snapshot restore (non-destructive)
+  2. 测试快照恢复（非破坏性）
      $ sudo btrfs subvolume snapshot /.snapshots/root/latest /tmp/restore-test
      $ ls /tmp/restore-test/etc/nixos/
      $ sudo btrfs subvolume delete /tmp/restore-test
 
-  3. Verify remote backups are current
+  3. 验证远程备份是否为最新
      $ ssh backup-server "ls -la /backups/$(hostname)/ | tail -5"
 
-  4. Update the NixOS flake (in a test environment first)
+  4. 更新 NixOS flake（先在测试环境中验证）
      $ nix flake update
      $ nixos-rebuild dry-build
 ```
 
-### Monthly Operations
+### 每月运维
 
 ```
-Monthly Review (2 hours):
-  1. Full disaster recovery drill
-     - Restore from backup to a test server
-     - Verify all services come up
-     - Test TOTP authentication
-     - Document any issues
+月检（2 小时）:
+  1. 完整灾难恢复演练
+     - 从备份恢复到测试服务器
+     - 验证所有服务正常启动
+     - 测试 TOTP 认证
+     - 记录发现的问题
 
-  2. Review and update OpenClaw policies
-     - Are the tier classifications still correct?
-     - Any new actions that should be whitelisted?
-     - Rate limits appropriate?
+  2. 审查并更新 OpenClaw 策略
+     - 层级分类是否仍然正确？
+     - 是否有新操作需要加入白名单？
+     - 速率限制是否合适？
 
-  3. Rotate secrets
+  3. 轮换密钥
      - OpenClaw API key
-     - Backup SSH keys
-     - Review TOTP enrollment
+     - 备份 SSH 密钥
+     - 审查 TOTP 注册情况
 
-  4. Review and archive old snapshots
+  4. 审查并归档旧快照
      $ sudo snapper -c root cleanup number
      $ sudo snapper -c db cleanup number
 ```
 
-## Anti-Patterns
+## 反模式
 
-Things that will get you into trouble:
+以下做法会让你陷入麻烦：
 
-### 1. Giving OpenClaw Root Access
+### 1. 给 OpenClaw 赋予 root 权限
 
 ```
-DON'T:
+不要这样做:
   users.users.openclaw.extraGroups = [ "wheel" ];
-  # or
+  # 或者
   security.sudo.extraRules = [{
     users = [ "openclaw" ];
     commands = [{ command = "ALL"; options = [ "NOPASSWD" ]; }];
   }];
 ```
 
-This bypasses every safety layer. OpenClaw must go through TOTP-gated sudo for destructive operations.
+这会绕过所有安全层。OpenClaw 必须通过 TOTP 保护的 sudo 执行破坏性操作。
 
-### 2. Disabling Snapshots to Save Space
+### 2. 为节省空间而禁用快照
 
 ```
-DON'T:
+不要这样做:
   services.snapper.configs.root.TIMELINE_CREATE = false;
 ```
 
-Without snapshots, rollback is impossible. If disk space is an issue, reduce retention — don't disable snapshots.
+没有快照就无法回滚。如果磁盘空间不足，减少保留数量 -- 不要禁用快照。
 
-### 3. Trusting AI Output Without Verification
-
-```
-DON'T:
-  Accept every proposal OpenClaw makes without reviewing the Nix diff.
-
-DO:
-  Review every Tier 3 proposal before providing your TOTP code.
-  The TOTP gate is your opportunity to review, not just a speed bump.
-```
-
-### 4. Skipping Health Checks
+### 3. 不加验证地信任 AI 输出
 
 ```
-DON'T:
-  Apply changes without post-change health verification.
-  The auto-rollback system only works if health checks are comprehensive.
+不要这样做:
+  不审查 Nix 差异就接受 OpenClaw 的每个提案。
 
-DO:
-  Add application-specific health checks beyond the defaults.
-  If your app has a /health endpoint, include it.
+正确做法:
+  在提供 TOTP 验证码之前审查每个 Tier 3 提案。
+  TOTP 关卡是你审查的机会，而不只是一个减速带。
 ```
 
-## Operational Metrics
+### 4. 跳过健康检查
 
-Track these metrics to assess the health of your AI-managed infrastructure:
+```
+不要这样做:
+  应用变更后不进行健康验证。
+  自动回滚系统只有在健康检查全面的情况下才能正常工作。
 
-| Metric | Target | Alert Threshold |
+正确做法:
+  在默认检查之外添加应用特定的健康检查。
+  如果你的应用有 /health 端点，请将其加入检查。
+```
+
+## 运维指标
+
+跟踪以下指标以评估 AI 管理基础设施的健康状况：
+
+| 指标 | 目标值 | 告警阈值 |
 |---|---|---|
-| Successful changes / total changes | > 95% | < 90% |
-| Rollbacks per week | < 2 | > 3 |
-| Mean time to detect issue | < 5 min | > 15 min |
-| Mean time to recover | < 10 min | > 30 min |
-| Snapshot space usage | < 30% of disk | > 50% |
-| OpenClaw action rate | 5-15/day | > 30/day or 0/day |
-| TOTP approval response time | < 15 min | > 1 hour |
+| 成功变更 / 总变更数 | > 95% | < 90% |
+| 每周回滚次数 | < 2 | > 3 |
+| 平均问题发现时间 | < 5 分钟 | > 15 分钟 |
+| 平均恢复时间 | < 10 分钟 | > 30 分钟 |
+| 快照空间占用 | < 磁盘的 30% | > 50% |
+| OpenClaw 操作频率 | 5-15 次/天 | > 30 次/天 或 0 次/天 |
+| TOTP 审批响应时间 | < 15 分钟 | > 1 小时 |
 
-## Complete System Summary
+## 完整系统总览
 
 ```mermaid
 flowchart TB
-    subgraph Infra["Self-Healing NixOS Infrastructure"]
-        OC["OpenClaw AI Operator<br/>Monitor • Detect • Propose"] --> PE["Policy Engine<br/>Tier 1-3 • Rate limit • Whitelist"]
-        PE --> TG["TOTP Gate<br/>6-digit code • pam_oath • Audit logged"]
-        TG --> SR["safe-rebuild<br/>1. Snapshot 2. Rebuild<br/>3. Health check 4. Commit/rollback"]
-        SR --> BF["Btrfs Filesystem<br/>root / home / db / nix / log / snapshots<br/>Snapper: hourly timeline + pre/post rebuild pairs<br/>Backup: daily btrfs send/receive to remote"]
+    subgraph Infra["自愈式 NixOS 基础设施"]
+        OC["OpenClaw AI 运维<br/>监控 • 检测 • 提案"] --> PE["策略引擎<br/>Tier 1-3 • 速率限制 • 白名单"]
+        PE --> TG["TOTP 关卡<br/>6 位验证码 • pam_oath • 审计记录"]
+        TG --> SR["safe-rebuild<br/>1. 快照 2. 重建<br/>3. 健康检查 4. 提交/回滚"]
+        SR --> BF["Btrfs 文件系统<br/>root / home / db / nix / log / snapshots<br/>Snapper: 每小时时间线 + 重建前后配对快照<br/>备份: 每日 btrfs send/receive 到远程"]
     end
 
-    BF --> R1["Recovery: snapper undochange"]
-    BF --> R2["Recovery: NixOS generation rollback"]
-    BF --> R3["Recovery: Btrfs snapshot restore"]
-    BF --> R4["Recovery: Remote backup restore"]
-    BF --> R5["Recovery: Clean reinstall from flake"]
+    BF --> R1["恢复: snapper undochange"]
+    BF --> R2["恢复: NixOS 代际回滚"]
+    BF --> R3["恢复: Btrfs 快照恢复"]
+    BF --> R4["恢复: 远程备份恢复"]
+    BF --> R5["恢复: 从 flake 全新安装"]
 ```
 
-## Final Thoughts
+## 结语
 
-This architecture provides a practical framework for AI-assisted infrastructure management. The key insight is that **AI doesn't need to be perfect to be useful** — it just needs to operate within a system where mistakes are cheap to undo.
+这套架构为 AI 辅助基础设施管理提供了实用的框架。核心洞察是：**AI 不需要完美才能有用** -- 它只需要在一个「犯错代价低廉」的系统中运行。
 
-The combination of:
-- **NixOS** (declarative, reproducible system state)
-- **Btrfs snapshots** (instant, space-efficient rollback)
-- **TOTP gates** (human-in-the-loop for critical operations)
-- **Policy engine** (bounded AI autonomy)
+以下组合：
+- **NixOS**（声明式、可复现的系统状态）
+- **Btrfs 快照**（即时、空间高效的回滚）
+- **TOTP 关卡**（关键操作中的人类在环）
+- **策略引擎**（有边界的 AI 自主权）
 
-creates an environment where AI can experiment and learn while humans maintain ultimate control. When the AI makes a mistake, recovery is one command away. When it makes a good decision, the system improves without human intervention.
+创造了一个环境：AI 可以实验和学习，而人类保持最终控制权。当 AI 犯错时，一条命令即可恢复。当 AI 做出正确决策时，系统无需人工干预即可改进。
 
-Start conservative — restrict OpenClaw to Tier 1 actions only. As you build confidence, gradually expand its autonomy. The safety layers are there so you can move fast without fear.
+从保守开始 -- 将 OpenClaw 限制在 Tier 1 操作。随着信心的积累，逐步扩大其自主权。安全层的存在就是为了让你能快速行动而无需担忧。
 
-Have questions? Check the [FAQ](./faq) for answers to common questions about this architecture.
+有疑问？请查看[常见问题](./faq)了解关于这套架构的常见问题解答。
