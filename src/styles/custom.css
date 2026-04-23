@@ -1,0 +1,59 @@
+/* Starlight CSS custom properties — Self-Healing NixOS Infrastructure */
+:root {
+  --sl-color-accent-low: #dde5f7;
+  --sl-color-accent: #5b7bd5;
+  --sl-color-accent-high: #2f4da5;
+
+  /* Demo component tier colors */
+  --demo-tier1-color: #22c55e;
+  --demo-tier2-color: #f59e0b;
+  --demo-tier3-color: #ef4444;
+
+  /* Terminal styling (Catppuccin-inspired) */
+  --demo-terminal-bg: #1e1e2e;
+  --demo-terminal-text: #cdd6f4;
+  --demo-terminal-green: #a6e3a1;
+  --demo-terminal-red: #f38ba8;
+  --demo-terminal-yellow: #f9e2af;
+  --demo-terminal-blue: #89b4fa;
+
+  /* Demo card colors */
+  --demo-success-bg: #f0fdf4;
+  --demo-failure-bg: #fef2f2;
+  --demo-card-bg: #ffffff;
+  --demo-card-border: #e5e7eb;
+  --demo-muted-text: #6b7280;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #1a2647;
+  --sl-color-accent: #7b9be0;
+  --sl-color-accent-high: #a5bbec;
+
+  --demo-success-bg: #052e16;
+  --demo-failure-bg: #450a0a;
+  --demo-card-bg: #1f2937;
+  --demo-card-border: #374151;
+  --demo-muted-text: #9ca3af;
+}
+
+/* Mermaid diagram container */
+.mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Improved heading spacing */
+.sl-markdown-content h1 { font-size: 2rem; }
+
+/* Rounded code blocks */
+.sl-markdown-content pre {
+  border-radius: 8px;
+}
